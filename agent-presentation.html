@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Как работает нейросеть-агент</title>
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:        #FAFAF9;
+    --ink:       #111111;
+    --ink-soft:  #4B4B4B;
+    --ink-mute:  #8B8B8B;
+    --line:      #E3E3E0;
+    --pill:      #FFFFFF;
+    --pill-dark: #111111;
+    --mono:      ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans:      "Helvetica Neue", Inter, Arial, sans-serif;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:var(--sans);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background:#111; color:#fff; }
+
+  /* ---------- deck ---------- */
+  .deck{ position:relative; width:100vw; height:100vh; height:100dvh; }
+  .slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    padding:6vh 7vw;
+    opacity:0; visibility:hidden;
+    transform:translateY(26px);
+    transition:opacity .55s cubic-bezier(.22,1,.36,1),
+               transform .55s cubic-bezier(.22,1,.36,1),
+               visibility 0s linear .55s;
+  }
+  .slide.active{
+    opacity:1; visibility:visible; transform:translateY(0);
+    transition:opacity .55s cubic-bezier(.22,1,.36,1),
+               transform .55s cubic-bezier(.22,1,.36,1);
+  }
+
+  /* staged reveal inside a slide */
+  .rv{
+    opacity:0; transform:translateY(18px);
+    transition:opacity .6s cubic-bezier(.22,1,.36,1),
+               transform .6s cubic-bezier(.22,1,.36,1);
+    transition-delay:0s;
+  }
+  .slide.active .rv{ opacity:1; transform:translateY(0); }
+  .slide.active .rv:nth-of-type(1),.slide.active .d1{ transition-delay:.10s; }
+  .slide.active .rv.d2{ transition-delay:.22s; }
+  .slide.active .rv.d3{ transition-delay:.34s; }
+  .slide.active .rv.d4{ transition-delay:.46s; }
+  .slide.active .rv.d5{ transition-delay:.58s; }
+  .slide.active .rv.d6{ transition-delay:.70s; }
+  .slide.active .rv.d7{ transition-delay:.82s; }
+  .slide.active .rv.d8{ transition-delay:.94s; }
+
+  /* ---------- typographic atoms ---------- */
+  .kicker{
+    font-family:var(--mono); font-size:11px; letter-spacing:3.5px;
+    text-transform:uppercase; color:var(--ink-mute);
+    margin-bottom:22px;
+  }
+  h1{
+    font-size:clamp(34px,5.2vw,64px); font-weight:600;
+    letter-spacing:-1.5px; line-height:1.08;
+  }
+  h2{
+    font-size:clamp(26px,3.4vw,42px); font-weight:600;
+    letter-spacing:-0.8px; line-height:1.1;
+    margin-bottom:14px;
+  }
+  .lead{
+    font-size:clamp(15px,1.4vw,19px); line-height:1.65; color:var(--ink-soft);
+    max-width:62ch;
+  }
+  .lead b, .lead strong{ color:var(--ink); font-weight:600; }
+  .rule{ width:44px; height:2px; background:var(--ink); margin:26px 0; }
+  .center-text{ text-align:center; }
+  .center-text .rule{ margin-left:auto; margin-right:auto; }
+
+  /* ---------- pills & connectors (diagrams) ---------- */
+  .chain{
+    display:flex; align-items:center;
+    gap:0; flex-wrap:nowrap;
+    width:100%; justify-content:center;
+  }
+  .chain.vertical{ flex-direction:column; gap:2px; }
+  .node{
+    font-family:var(--mono);
+    font-size:clamp(10px,0.95vw,13px);
+    letter-spacing:0.5px;
+    padding:9px 16px;
+    border:1px solid var(--line);
+    background:var(--pill);
+    border-radius:999px;
+    white-space:nowrap;
+    color:var(--ink);
+    flex-shrink:0;
+  }
+  .node.dark{
+    background:var(--pill-dark); color:#fff; border-color:var(--pill-dark);
+  }
+  .node.outline-dotted{ border-style:dashed; color:var(--ink-soft); }
+  .node.brain{
+    border-width:2px; font-weight:700; padding:12px 22px;
+  }
+  .conn{
+    flex:1 1 12px; min-width:12px; max-width:64px;
+    height:1px; background:var(--line);
+    position:relative;
+    margin:0 2px;
+    transform-origin:left center;
+  }
+  /* animated draw */
+  .chain .conn{ transform:scaleX(0); }
+  .slide.active.chain-go .conn{ animation:drawIn .45s cubic-bezier(.22,1,.36,1) forwards; }
+  @keyframes drawIn{ to{ transform:scaleX(1); } }
+
+  /* arrow heads built with css */
+  .conn.r::after{ /* pointing right */
+    content:""; position:absolute; right:-1px; top:-3.5px;
+    width:6px; height:6px;
+    border-right:1px solid var(--ink-mute); border-top:1px solid var(--ink-mute);
+    transform:rotate(45deg);
+    opacity:0; transition:opacity .3s ease .45s;
+  }
+  .conn.l::after{ /* pointing left */
+    content:""; position:absolute; left:-1px; top:-3.5px;
+    width:6px; height:6px;
+    border-left:1px solid var(--ink-mute); border-bottom:1px solid var(--ink-mute);
+    transform:rotate(-45deg);
+    opacity:0; transition:opacity .3s ease .45s;
+  }
+  .slide.active .conn.r::after,.slide.active .conn.l::after{ opacity:1; }
+
+  /* nodes fade in sequence */
+  .chain .node{ opacity:0; transform:translateY(8px); }
+  .slide.active .chain .node{
+    opacity:1; transform:translateY(0);
+    transition:opacity .5s ease, transform .5s cubic-bezier(.22,1,.36,1);
+  }
+  .slide.active .chain .node:nth-child(1){ transition-delay:.05s; }
+  .slide.active .chain .node:nth-child(3){ transition-delay:.25s; }
+  .slide.active .chain .node:nth-child(5){ transition-delay:.45s; }
+  .slide.active .chain .node:nth-child(7){ transition-delay:.65s; }
+  .slide.active .chain .node:nth-child(9){ transition-delay:.85s; }
+  .slide.active .chain .node:nth-child(11){ transition-delay:1.05s; }
+  .slide.active .chain .node:nth-child(13){ transition-delay:1.25s; }
+  .slide.active .chain .node:nth-child(15){ transition-delay:1.45s; }
+  .slide.active .chain .conn:nth-child(2){ animation-delay:.15s; }
+  .slide.active .chain .conn:nth-child(4){ animation-delay:.35s; }
+  .slide.active .chain .conn:nth-child(6){ animation-delay:.55s; }
+  .slide.active .chain .conn:nth-child(8){ animation-delay:.75s; }
+  .slide.active .chain .conn:nth-child(10){ animation-delay:.95s; }
+  .slide.active .chain .conn:nth-child(12){ animation-delay:1.15s; }
+  .slide.active .chain .conn:nth-child(14){ animation-delay:1.35s; }
+
+  /* return path line (схема 3) */
+  .ret{
+    width:min(60%,560px); height:1px;
+    border-top:1px dashed #CFCFCB;
+    position:relative; margin-top:26px;
+    transform:scaleX(0); transform-origin:center;
+  }
+  .slide.active .ret{ animation:drawIn .6s cubic-bezier(.22,1,.36,1) 1.15s forwards; }
+  .ret::after{
+    content:""; position:absolute; left:-2px; top:-4px;
+    width:6px; height:6px;
+    border-left:1px solid var(--ink-mute); border-bottom:1px solid var(--ink-mute);
+    transform:rotate(-45deg);
+    opacity:0; transition:opacity .3s ease 1.55s;
+  }
+  .slide.active .ret::after{ opacity:1; }
+
+  /* environment (schema 2): Skill—Github—Plugins / ↑ / MCP—окружение—Agent.md */
+  .env-rows{ display:flex; flex-direction:column; align-items:center; width:100%; }
+  .node.hub{ border-width:2px; font-weight:700; border-color:var(--ink); background:var(--pill); }
+  .vup{
+    width:1px; height:44px; background:var(--line); position:relative;
+    transform:scaleY(0); transform-origin:bottom center;
+    margin:6px 0;
+  }
+  .slide.active.env-go .vup{ animation:drawDown .42s cubic-bezier(.22,1,.36,1) .55s forwards; }
+  @keyframes drawDown{ to{ transform:scaleY(1); } }
+  .vup::after{
+    content:""; position:absolute; top:-1px; left:-3.5px;
+    width:6px; height:6px;
+    border-top:1px solid var(--ink-mute); border-left:1px solid var(--ink-mute);
+    transform:rotate(45deg);
+    opacity:0; transition:opacity .3s ease .95s;
+  }
+  .slide.active.env-go .vup::after{ opacity:1; }
+
+  /* ---------- explainer rows ---------- */
+  .steps{
+    width:100%; max-width:880px;
+    display:flex; flex-direction:column; gap:0;
+  }
+  .step{
+    display:grid;
+    grid-template-columns:minmax(150px, max-content) 1fr;
+    gap:30px; align-items:baseline;
+    padding:clamp(9px,1.5vh,17px) 0;
+    border-bottom:1px solid var(--line);
+  }
+  .step:last-child{ border-bottom:none; }
+  .step .tag{
+    font-family:var(--mono); font-size:clamp(11.5px,0.95vw,12.5px);
+    color:var(--ink); letter-spacing:0.4px; font-weight:600;
+    white-space:nowrap;
+  }
+  .step .tag .n{
+    color:var(--ink-mute); font-weight:400; margin-right:10px;
+  }
+  .step p{
+    font-size:clamp(13px,1.1vw,15.5px); line-height:1.55; color:var(--ink-soft);
+  }
+  .step p b{ color:var(--ink); font-weight:600; }
+
+  /* compact mode для невысоких экранов */
+  @media (max-height:760px){
+    .slide{ padding:4.5vh 7vw; }
+    .kicker{ margin-bottom:12px; }
+    h2{ margin-bottom:6px; font-size:clamp(24px,3vw,34px); }
+    .hairline{ margin:4px 0 18px; }
+    .rule{ margin:16px 0; }
+    .lead{ font-size:clamp(14px,1.25vw,17px); }
+  }
+  /* мобильная деградация */
+  @media (max-width:720px){
+    .slide{ padding:8vh 6vw; }
+    .chain{ flex-wrap:wrap; row-gap:10px; }
+    .chain .conn{ display:none; }
+    .node{ font-size:10.5px; padding:8px 12px; }
+    .steps,.step{ display:block; }
+    .step{ padding:11px 0; }
+    .step .tag{ display:block; margin-bottom:5px; }
+    h1{ letter-spacing:-0.8px; }
+    .counter{ left:16px; bottom:16px; }
+    .nav{ right:16px; bottom:14px; }
+    .dots{ display:none; }
+  }
+
+  /* ---------- chrome / nav ---------- */
+  .nav{
+    position:fixed; right:26px; bottom:24px; z-index:50;
+    display:flex; align-items:center; gap:10px;
+  }
+  .nav button{
+    width:36px; height:36px; border-radius:999px;
+    border:1px solid var(--line); background:#fff;
+    font-size:15px; cursor:pointer; color:var(--ink-soft);
+    transition:all .25s ease;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .nav button:hover{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .counter{
+    position:fixed; left:28px; bottom:28px; z-index:50;
+    font-family:var(--mono); font-size:11px; letter-spacing:2px;
+    color:var(--ink-mute);
+  }
+  .progress{
+    position:fixed; left:0; top:0; height:2px; background:var(--ink);
+    width:0%; transition:width .5s cubic-bezier(.22,1,.36,1); z-index:60;
+  }
+  .dots{
+    position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+    display:flex; gap:8px; z-index:50;
+  }
+  .dots span{
+    width:7px; height:7px; border-radius:50%;
+    background:#D8D8D4;
+    border:5px solid transparent; background-clip:content-box;
+    box-sizing:content-box;
+    cursor:pointer; transition:all .3s ease;
+  }
+  .dots span.on{ background:var(--ink); background-clip:content-box; transform:scale(1.3); }
+
+  .hairline{
+    width:100%; max-width:1200px; height:1px; background:var(--line);
+    margin:8px 0 34px;
+  }
+
+  /* respect reduced motion */
+  @media (prefers-reduced-motion: reduce){
+    *,.slide,.rv,.chain .node,.conn{
+      transition:none !important; animation:none !important;
+      opacity:1 !important; transform:none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="counter" id="counter">01 / 13</div>
+<div class="dots" id="dots"></div>
+
+<div class="deck" id="deck">
+
+  <!-- 01 · TITLE -->
+  <section class="slide center-text active">
+    <div class="rv d1 kicker">Простое объяснение · для обычных людей</div>
+    <h1 class="rv d2">Как работает<br>нейросеть-агент</h1>
+    <div class="rv d3 rule"></div>
+    <p class="rv d4 lead" style="margin:0 auto">Никакой магии. Только цепочка слоёв, через которые проходит ваш запрос к «мозгу» — и обратно.</p>
+    <div class="rv d5 chain" style="margin-top:52px; max-width:820px">
+      <div class="node">запрос</div><div class="conn r"></div>
+      <div class="node">интерфейс</div><div class="conn r"></div>
+      <div class="node">терминал</div><div class="conn r"></div>
+      <div class="node dark brain">МОЗГ</div><div class="conn r"></div>
+      <div class="node">ответ</div>
+    </div>
+  </section>
+
+  <!-- 02 · THREE PARTS -->
+  <section class="slide">
+    <div class="rv d1 kicker">Три части системы</div>
+    <h2 class="rv d2">Всё состоит из трёх частей</h2>
+    <div class="rv d3 hairline"></div>
+    <div class="rv d4 steps">
+      <div class="step"><span class="tag"><span class="n">01</span>МОЗГ</span><p><b>Веса модели</b> — миллиарды чисел, настроенных при обучении. Единственное, что «думает». Всё остальное лишь подаёт ему данные и уносит ответы.</p></div>
+      <div class="step"><span class="tag"><span class="n">02</span>ТЕРМИНАЛ</span><p><b>Скрытая «кухня»</b> — работа, которую человек не видит: размышления, команды, файлы, проверки, исправления ошибок.</p></div>
+      <div class="step"><span class="tag"><span class="n">03</span>ИНТЕРФЕЙС</span><p><b>То, что вы видите</b> — например, окно opencode. Кнопки, диалог, готовый результат. Лицо системы.</p></div>
+    </div>
+  </section>
+
+  <!-- 03 · SCHEMA 1 (IN) -->
+  <section class="slide chain-go env-go">
+    <div class="rv d1 kicker">Схема 1 · путь запроса к мозгу</div>
+    <h2 class="rv d2">Полная цепочка: запрос → мозг</h2>
+    <p class="rv d3 lead" style="margin-bottom:44px">Каждый слой добавляет что-то своё — инструкции, контекст, правила — и лишь обогащённый пакет доходит до мозга.</p>
+    <div class="rv d4 chain" style="max-width:1200px">
+      <div class="node">Запрос</div><div class="conn r"></div>
+      <div class="node">Внешний интерфейс</div><div class="conn r"></div>
+      <div class="node">Терминал</div><div class="conn r"></div>
+      <div class="node">Workflow</div><div class="conn r"></div>
+      <div class="node">Правила агента</div><div class="conn r"></div>
+      <div class="node">Промпт окружения</div><div class="conn r"></div>
+      <div class="node">Системный промпт</div><div class="conn r"></div>
+      <div class="node dark brain">МОЗГ</div>
+    </div>
+    <div class="rv d5 rule" style="margin-top:48px"></div>
+    <p class="rv d6 lead" style="max-width:none">Направление — <b>влево к мозгу</b>. Слоёв больше, путаницы меньше: каждый делает ровно одну работу.</p>
+  </section>
+
+  <!-- 04 · SCHEMA 1 (OUT) -->
+  <section class="slide chain-go">
+    <div class="rv d1 kicker">Схема 1 · обратный путь</div>
+    <h2 class="rv d2">Ответ идёт той же цепочкой назад</h2>
+    <p class="rv d3 lead" style="margin-bottom:44px">Эстафета в обратную сторону: мозг сказал терминалу → терминал сделал интерфейсу → интерфейс вывел человеку.</p>
+    <div class="rv d4 chain" style="max-width:1200px">
+      <div class="node dark brain">МОЗГ</div><div class="conn r"></div>
+      <div class="node">Системный промпт</div><div class="conn r"></div>
+      <div class="node">Промпт окружения</div><div class="conn r"></div>
+      <div class="node">Правила агента</div><div class="conn r"></div>
+      <div class="node">Workflow</div><div class="conn r"></div>
+      <div class="node">Терминал</div><div class="conn r"></div>
+      <div class="node">Внешний интерфейс</div><div class="conn r"></div>
+      <div class="node outline-dotted">Ответ</div>
+    </div>
+    <div class="rv d5 rule" style="margin-top:48px"></div>
+    <p class="rv d6 lead" style="max-width:none">Схема симметрична: тот же набор слоёв, направление другое. <b>Мозг — начало и конец всего.</b></p>
+  </section>
+
+  <!-- 05 · SCHEMA 1 STEPS -->
+  <section class="slide">
+    <div class="rv d1 kicker">Разбор · каждый этап схемы 1</div>
+    <h2 class="rv d2">Что делает каждый слой</h2>
+    <div class="rv d3 hairline"></div>
+    <div class="rv d4 steps">
+      <div class="step"><span class="tag"><span class="n">01</span>Запрос</span><p>То, что вы напечатали. Пока просто текст, без обработки.</p></div>
+      <div class="step"><span class="tag"><span class="n">02</span>Внешний интерфейс</span><p>Видимая часть (окно opencode). Принимает запрос и передаёт его дальше в систему.</p></div>
+      <div class="step"><span class="tag"><span class="n">03</span>Терминал</span><p>Скрытая «кухня»: команды, файлы, процессы. Превращает слова в реальные действия.</p></div>
+      <div class="step"><span class="tag"><span class="n">04</span>Workflow</span><p>Внутренний процесс: порядок действий. Что делать сначала, что потом. Маршрут задачи.</p></div>
+      <div class="step"><span class="tag"><span class="n">05</span>Правила агента</span><p>Инструкции поведения: что можно, что нельзя. Фильтр между «хочу сделать» и «должен сделать».</p></div>
+      <div class="step"><span class="tag"><span class="n">06</span>Промпт окружения</span><p>Данные о среде: операционная система, текущая папка, доступные инструменты. Контекст места работы.</p></div>
+      <div class="step"><span class="tag"><span class="n">07</span>Системный промпт</span><p>Главная инструкция, ближайшая к мозгу. «Характер» и «профессия» агента. Меняется реже всего.</p></div>
+      <div class="step"><span class="tag"><span class="n">08</span>МОЗГ</span><p>Веса модели — единственное место, где происходит мышление.</p></div>
+    </div>
+  </section>
+
+  <!-- 06 · SCHEMA 2 -->
+  <section class="slide chain-go env-go">
+    <div class="rv d1 kicker">Схема 2 · окружение</div>
+    <h2 class="rv d2">Окружение вооружает мозг</h2>
+    <p class="rv d3 lead" style="margin-bottom:36px">Сам мозг пассивен: ни рук, ни глаз. Руки даёт окружение — оно поставляет инструменты, навыки и правила.</p>
+    <div class="rv d4 env-rows" style="margin:10px auto 0; max-width:900px">
+      <div class="chain" style="max-width:620px">
+        <div class="node">Skill</div><div class="conn"></div>
+        <div class="node">Github</div><div class="conn"></div>
+        <div class="node">Plugins</div>
+      </div>
+      <div class="vup" aria-hidden="true"></div>
+      <div class="chain" style="max-width:760px">
+        <div class="node">MCP</div><div class="conn l"></div>
+        <div class="node dark brain">окружение</div><div class="conn r"></div>
+        <div class="node">Agent.md</div>
+      </div>
+    </div>
+    <div class="rv d5 rule" style="margin-top:44px"></div>
+    <p class="rv d6 lead" style="max-width:none; text-align:center"><span style="white-space:nowrap"><b>Skill</b> — готовый навык</span> · <span style="white-space:nowrap"><b>MCP</b> — мост к сервисам</span> · <span style="white-space:nowrap"><b>Agent.md</b> — паспорт агента</span> · <span style="white-space:nowrap"><b>Plugins</b> — расширения</span> · <span style="white-space:nowrap"><b>Github</b> — библиотека наработок</span></p>
+  </section>
+
+  <!-- 07 · SCHEMA 2 STEPS -->
+  <section class="slide">
+    <div class="rv d1 kicker">Разбор · каждый элемент схемы 2</div>
+    <h2 class="rv d2">Кто что даёт мозгу</h2>
+    <div class="rv d3 hairline"></div>
+    <div class="rv d4 steps">
+      <div class="step"><span class="tag"><span class="n">01</span>окружение</span><p>Центральный элемент — «среда обитания». Место, откуда агент берёт дополнительные возможности. Сам мозг пассивен — окружение его вооружает.</p></div>
+      <div class="step"><span class="tag"><span class="n">02</span>Skill</span><p>Готовый «навык»: упакованная инструкция по конкретному типу задач. Подключается, когда задача попадает в специализацию.</p></div>
+      <div class="step"><span class="tag"><span class="n">03</span>Github</span><p>Источник навыков и плагинов. Готовая библиотека чужих наработок вместо того, чтобы писать всё с нуля.</p></div>
+      <div class="step"><span class="tag"><span class="n">04</span>Plugins</span><p>Расширения функциональности: новые инструменты, интеграции, действия.</p></div>
+      <div class="step"><span class="tag"><span class="n">05</span>MCP</span><p>Мост наружу: протокол, связывающий агента с внешними сервисами и данными за пределами системы.</p></div>
+      <div class="step"><span class="tag"><span class="n">06</span>Agent.md</span><p>Файл-паспорт конкретного агента: правила, описание, настройки поведения. Каждый берёт свой.</p></div>
+    </div>
+  </section>
+
+  <!-- 08 · SCHEMA 3 -->
+  <section class="slide chain-go">
+    <div class="rv d1 kicker">Схема 3 · упрощённый путь</div>
+    <h2 class="rv d2">Минимальная модель</h2>
+    <p class="rv d3 lead" style="margin-bottom:52px">Если объяснять совсем коротко: три промежуточных опорных звена между вами и мозгом.</p>
+    <div class="rv d5 ret" aria-hidden="true"></div>
+    <div class="rv d5 chain" style="max-width:760px">
+      <div class="node">запрос</div><div class="conn r"></div>
+      <div class="node">интерфейс</div><div class="conn r"></div>
+      <div class="node">терминал</div><div class="conn r"></div>
+      <div class="node dark brain">МОЗГ</div><div class="conn r"></div>
+      <div class="node">ответ</div>
+    </div>
+    <div class="rv d6 rule" style="margin-top:52px"></div>
+    <p class="rv d7 lead" style="max-width:none; text-align:center">Человек видит только два конца цепочки — <b>свой запрос</b> и <b>готовый ответ</b>. Всё посередине скрыто.</p>
+  </section>
+
+  <!-- 09 · SCHEMA 3 STEPS -->
+  <section class="slide">
+    <div class="rv d1 kicker">Разбор · каждый этап схемы 3</div>
+    <h2 class="rv d2">Упрощённый путь по этапам</h2>
+    <div class="rv d3 hairline"></div>
+    <div class="rv d4 steps">
+      <div class="step"><span class="tag"><span class="n">01</span>запрос</span><p>Минимум: человек что-то просит.</p></div>
+      <div class="step"><span class="tag"><span class="n">02</span>интерфейс</span><p>Видимый слой принимает запрос и передаёт дальше.</p></div>
+      <div class="step"><span class="tag"><span class="n">03</span>терминал</span><p>Невидимый слой, где происходит реальная работа.</p></div>
+      <div class="step"><span class="tag"><span class="n">04</span>МОЗГ</span><p>Веса модели обрабатывают обогащённый запрос. Здесь рождается ответ.</p></div>
+      <div class="step"><span class="tag"><span class="n">05</span>обратный путь</span><p>То же в обратном порядке: мозг формирует ответ → терминал превращает его в действия → интерфейс показывает вам готовый результат.</p></div>
+    </div>
+  </section>
+
+  <!-- 10 · WHY LAYERS -->
+  <section class="slide">
+    <div class="rv d1 kicker">Аналогия</div>
+    <h2 class="rv d2">Почему цепочка, а не напрямую</h2>
+    <div class="rv d3 hairline"></div>
+    <div class="rv d4 steps">
+      <div class="step"><span class="tag"><span class="n">01</span>Кухня</span><p>Терминал — это кухня ресторана: официант, вы и готовое блюдо. Процесс на кухне вы не видите, но он решает всё.</p></div>
+      <div class="step"><span class="tag"><span class="n">02</span>Фильтры</span><p>Каждый слой — настройка. Мозг получает не сырой вопрос, а обогащённый пакет: правила, контекст, инструменты.</p></div>
+      <div class="step"><span class="tag"><span class="n">03</span>Симметрия</span><p>Ответ идёт по той же цепочке назад — как эстафета: мозг → терминал → интерфейс → человек.</p></div>
+      <div class="step"><span class="tag"><span class="n">04</span>Инструменты</span><p>Сам мозг ничего не умеет делать в вашем компьютере. Окружение даёт ему руки: навыки, плагины, мосты наружу.</p></div>
+    </div>
+  </section>
+
+  <!-- 11 · MENTAL MODEL -->
+  <section class="slide">
+    <div class="rv d1 kicker">Общая модель</div>
+    <h2 class="rv d2">Как это запомнить</h2>
+    <div class="rv d3 hairline"></div>
+    <div class="rv d4 steps">
+      <div class="step"><span class="tag"><span class="n">01</span>Мозг думает</span><p>Веса модели — единственное, что «думает». Всё остальное лишь помогает.</p></div>
+      <div class="step"><span class="tag"><span class="n">02</span>Терминал делает</span><p>Скрытая работа между вашим вопросом и ответом.</p></div>
+      <div class="step"><span class="tag"><span class="n">03</span>Интерфейс показывает</span><p>То лицо системы, которое видите вы.</p></div>
+      <div class="step"><span class="tag"><span class="n">04</span>Окружение вооружает</span><p>Навыки, плагины, мосты наружу и правила — сила из внешнего мира.</p></div>
+      <div class="step"><span class="tag"><span class="n">05</span>Слои наворачиваются</span><p>Запрос идёт сквозь цепочку к мозгу, ответ — обратно тем же путём.</p></div>
+    </div>
+  </section>
+
+  <!-- 12 · USE CASES -->
+  <section class="slide">
+    <div class="rv d1 kicker">Практика · где это уже работает</div>
+    <h2 class="rv d2">5 примеров применения в работе</h2>
+    <div class="rv d3 hairline"></div>
+    <div class="rv d4 steps">
+      <div class="step"><span class="tag"><span class="n">01</span>Код</span><p><b>Агент-разработчик</b> — opencode, Cursor, Copilot: читает проект, пишет код, правит ошибки, запускает тесты сам. Человек формулирует задачу — получает результат.</p></div>
+      <div class="step"><span class="tag"><span class="n">02</span>Документы</span><p><b>Текст и бумага</b> — черновики писем и отчётов, резюме документа в 3 пунктах, перевод со стилем. Юрист анализирует договор, HR сортирует резюме.</p></div>
+      <div class="step"><span class="tag"><span class="n">03</span>Поддержка</span><p><b>Чат-боты</b> — отвечают на 80% типовых вопросов сами: статус заказа, возврат, инструкция. Сложный случай передают человеку — с готовым резюме переписки.</p></div>
+      <div class="step"><span class="tag"><span class="n">04</span>Данные</span><p><b>Анализ и прогнозы</b> — закономерности продаж, прогноз спроса, выявление мошенничества в платежах, ловля ошибок в отчётности.</p></div>
+      <div class="step"><span class="tag"><span class="n">05</span>Маркетинг</span><p><b>Контент</b> — варианты объявлений и постов, логотипы и картинки, персональные рассылки, A/B-тесты описаний товара.</p></div>
+    </div>
+    <div class="rv d5 rule" style="margin-top:26px"></div>
+    <p class="rv d6 lead" style="max-width:none">Везде одно и то же: <b>человек видит интерфейс</b>, скрытый терминал делает работу, мозг думает. Меняется лишь «навык» из окружения.</p>
+  </section>
+
+  <!-- 13 · FINAL -->
+  <section class="slide center-text">
+    <div class="rv d1 kicker">Формула, если запоминается только она</div>
+    <h1 class="rv d2" style="letter-spacing:-1px">Запрос проходит сквозь слои<br>к мозгу. Мозг думает.<br>Ответ идёт обратно тем же путём.</h1>
+    <div class="rv d3 rule"></div>
+    <h2 class="rv d4" style="color:var(--ink-soft); font-weight:400">Это математика и слои — не магия.</h2>
+    <p class="rv d5" style="font-family:var(--mono); font-size:12px; letter-spacing:2px; color:var(--ink-mute); margin-top:26px">МОЗГ → ТЕРМИНАЛ → ИНТЕРФЕЙС → ОТВЕТ</p>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev" aria-label="Предыдущий слайд" title="Назад">←</button>
+  <button id="next" aria-label="Следующий слайд" title="Вперёд">→</button>
+</div>
+
+<script>
+  const slides   = [...document.querySelectorAll('.slide')];
+  const dotsBox  = document.getElementById('dots');
+  const progress = document.getElementById('progress');
+  const counter  = document.getElementById('counter');
+  let i = 0;
+
+  slides.forEach((_, n) => {
+    const d = document.createElement('span');
+    d.setAttribute('aria-label', 'Слайд ' + (n + 1));
+    d.addEventListener('click', () => go(n));
+    dotsBox.appendChild(d);
+  });
+  const dots = [...dotsBox.children];
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function go(n){
+    if(n < 0 || n >= slides.length) return;
+    slides[i].classList.remove('active');
+    i = n;
+    slides[i].classList.add('active');
+    dots.forEach((d,k)=> d.classList.toggle('on', k === i));
+    progress.style.width = ((i+1) / slides.length * 100) + '%';
+    counter.textContent = pad(i+1) + ' / ' + pad(slides.length);
+  }
+
+  document.getElementById('next').addEventListener('click', () => go(i+1));
+  document.getElementById('prev').addEventListener('click', () => go(i-1));
+
+  addEventListener('keydown', e => {
+    if(['ArrowRight','ArrowDown','PageDown',' '].includes(e.key)) { e.preventDefault(); go(i+1); }
+    if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)) { e.preventDefault(); go(i-1); }
+    if(e.key === 'Home') go(0);
+    if(e.key === 'End')  go(slides.length - 1);
+  });
+
+  // touch swipe
+  let sx = null;
+  addEventListener('touchstart', e => sx = e.touches[0].clientX, {passive:true});
+  addEventListener('touchend', e => {
+    if(sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx;
+    if(Math.abs(dx) > 60) dx < 0 ? go(i+1) : go(i-1);
+    sx = null;
+  }, {passive:true});
+
+  // wheel
+  let wheelLock = false;
+  addEventListener('wheel', e => {
+    if(wheelLock) return;
+    wheelLock = true;
+    setTimeout(()=> wheelLock = false, 650);
+    if(e.deltaY > 30) go(i+1); else if(e.deltaY < -30) go(i-1);
+  }, {passive:true});
+
+  go(0);
+</script>
+</body>
+</html>

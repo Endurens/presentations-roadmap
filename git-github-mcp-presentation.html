@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub, Git и MCP — просто</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --black: #000;
+      --white: #fff;
+      --gray: #888;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      background: var(--white);
+      color: var(--black);
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 6vw 8vw;
+      background: var(--white);
+      color: var(--black);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateX(5vw);
+      transition:
+        opacity .55s cubic-bezier(.4, 0, .2, 1),
+        transform .55s cubic-bezier(.22, .61, .36, 1),
+        visibility 0s linear .55s;
+      will-change: opacity, transform;
+    }
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateX(0);
+      transition:
+        opacity .55s cubic-bezier(.4, 0, .2, 1) .12s,
+        transform .6s cubic-bezier(.22, .61, .36, 1) .12s,
+        visibility 0s linear 0s;
+    }
+    .slide.invert {
+      background: var(--black);
+      color: var(--white);
+    }
+    /* стартовые позиции для входа/выхода слайдов */
+    .slide.from-left { transform: translateX(-5vw); }
+    .slide.no-anim { transition: none !important; }
+
+    /* Появление контента каскадом */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .slide.active .anim {
+      animation: fadeUp .7s cubic-bezier(.22, .61, .36, 1) both;
+    }
+
+    h1 {
+      font-size: 6.5vw;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      line-height: 0.95;
+    }
+    h2 {
+      font-size: 4.2vw;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 4vh;
+    }
+    .subtitle {
+      font-size: 2vw;
+      font-weight: 400;
+      margin-top: 3vh;
+      max-width: 60ch;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5vw;
+      margin-top: 4vh;
+    }
+    .chip {
+      border: 2px solid currentColor;
+      border-radius: 100px;
+      padding: 1.4vh 2vw;
+      font-size: 1.6vw;
+      white-space: nowrap;
+      transition: background .25s ease, color .25s ease, transform .25s ease;
+    }
+    .chip:hover { transform: translateY(-4px); }
+    .chip.solid {
+      background: currentColor;
+    }
+    .chip.solid span {
+      color: var(--white);
+    }
+    .invert .chip.solid span { color: var(--black); }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 2.2vh;
+      margin-top: 4vh;
+    }
+    .row {
+      display: flex;
+      align-items: baseline;
+      gap: 2vw;
+      font-size: 1.9vw;
+    }
+    .row .what {
+      font-weight: 800;
+      min-width: 16vw;
+    }
+    .row .arrow { color: var(--gray); }
+    .row .why { font-weight: 400; }
+
+    .big-text {
+      font-size: 2.2vw;
+      line-height: 1.5;
+      max-width: 55ch;
+      margin-top: 3vh;
+    }
+
+    .accent {
+      font-size: 3.4vw;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1.2;
+      margin-top: 4vh;
+    }
+
+    .footer {
+      position: absolute;
+      bottom: 4vh;
+      left: 8vw;
+      font-size: 1vw;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gray);
+    }
+
+    .nav {
+      position: fixed;
+      bottom: 3.5vh;
+      right: 4vw;
+      display: flex;
+      align-items: center;
+      gap: 1.5vw;
+      z-index: 10;
+    }
+    .nav button {
+      background: none;
+      border: 2px solid var(--black);
+      border-radius: 100px;
+      width: 3.2vw;
+      height: 3.2vw;
+      min-width: 40px;
+      min-height: 40px;
+      font-size: 1.2vw;
+      cursor: pointer;
+      color: var(--black);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .25s ease, color .25s ease, transform .25s ease;
+    }
+    .nav button:hover { background: var(--black); color: var(--white); transform: scale(1.1); }
+    .nav button:active { transform: scale(0.95); }
+    .counter { font-size: 1.1vw; font-variant-numeric: tabular-nums; }
+
+    /* Плавный прогресс-бар сверху */
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      background: var(--black);
+      width: 0;
+      transition: width .55s cubic-bezier(.22, .61, .36, 1);
+      z-index: 20;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .slide, .slide.active, .slide.active .anim, .progress { transition: none; animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- 1. Титул -->
+<section class="slide invert active">
+  <h1 class="anim">GitHub<br>и MCP<br>просто</h1>
+  <div class="subtitle anim">Что такое GitHub, репозиторий, коммит, GitHub Pages и MCP-серверы — объяснение для всех, не только для программистов</div>
+  <div class="chips anim">
+    <div class="chip">GitHub</div>
+    <div class="chip">Репозиторий</div>
+    <div class="chip">Коммит</div>
+    <div class="chip">GitHub Pages</div>
+    <div class="chip">MCP</div>
+  </div>
+  <div class="footer anim">Всё делает opencode — вы контролируете</div>
+</section>
+
+<!-- 2. MCP — что это -->
+<section class="slide">
+  <h2 class="anim">MCP — мост для нейронки</h2>
+  <div class="big-text anim">
+    MCP (Model Context Protocol) — протокол-«переходник», который
+    подключает нейронку к вашим программам: Figma, файлам, сайту.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Мост</span><span class="arrow">→</span><span class="why">соединяет ИИ с внешними инструментами</span></div>
+    <div class="row"><span class="what">Руки</span><span class="arrow">→</span><span class="why">нейронка не только отвечает, но и делает: читает, меняет, сохраняет</span></div>
+    <div class="row"><span class="what">Сервер</span><span class="arrow">→</span><span class="why">каждая программа даёт свой MCP-сервер — свой набор действий</span></div>
+  </div>
+  <div class="accent anim">Не просто чат — помощник с руками</div>
+  <div class="footer anim">MCP-серверы</div>
+</section>
+
+<!-- 3. Figsor — что это -->
+<section class="slide">
+  <h2 class="anim">Figsor — MCP для Figma</h2>
+  <div class="big-text anim">
+    Figsor — это MCP-сервер для Figma: подключается к opencode и даёт
+    нейронке прямой доступ к вашим макетам в Figma.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Читает</span><span class="arrow">→</span><span class="why">видит слои, тексты и стили макета так же, как вы</span></div>
+    <div class="row"><span class="what">Меняет</span><span class="arrow">→</span><span class="why">правит макет по вашему промпту — без ручной возни</span></div>
+    <div class="row"><span class="what">Записывает</span><span class="arrow">→</span><span class="why">сохраняет изменения прямо в Figma</span></div>
+  </div>
+  <div class="big-text anim">
+    Всё делает opencode — вы даёте промпты и контролируете каждое действие.
+  </div>
+  <div class="footer anim">Figma × MCP</div>
+</section>
+
+<!-- 4. GitHub — что это -->
+<section class="slide">
+  <h2 class="anim">GitHub — что это?</h2>
+  <div class="big-text anim">
+    GitHub — это облачный склад для файлов проекта + соцсеть для команд.
+    Как Google Диск, только заточен под код и историю изменений.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Хранение</span><span class="arrow">→</span><span class="why">ваш проект лежит в облаке и не потеряется</span></div>
+    <div class="row"><span class="what">История</span><span class="arrow">→</span><span class="why">видно, кто, когда и что менял</span></div>
+    <div class="row"><span class="what">Обмен</span><span class="arrow">→</span><span class="why">можно показать работу миру или команде</span></div>
+  </div>
+  <div class="accent anim">Склад + дневник + соцсеть</div>
+  <div class="footer anim">GitHub</div>
+</section>
+
+<!-- 3. Репозиторий -->
+<section class="slide invert">
+  <h2 class="anim">Репозиторий — папка проекта</h2>
+  <div class="big-text anim">
+    Репозиторий — это папка вашего проекта, у которой есть память.
+    Внутри — все файлы и вся история их изменений с самого первого дня.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Файлы</span><span class="arrow">→</span><span class="why">код, картинки, тексты — всё в одном месте</span></div>
+    <div class="row"><span class="what">Память</span><span class="arrow">→</span><span class="why">можно вернуться к любой старой версии</span></div>
+    <div class="row"><span class="what">Копия</span><span class="arrow">→</span><span class="why">скачал на компьютер — работаешь без интернета</span></div>
+  </div>
+  <div class="accent anim">Папка, которая помнит всё</div>
+  <div class="footer anim">Репозиторий</div>
+</section>
+
+<!-- 4. Коммит -->
+<section class="slide">
+  <h2 class="anim">Коммит — точка сохранения</h2>
+  <div class="big-text anim">
+    Коммит — это снимок проекта в конкретный момент. Как сохранение в игре:
+    сделал шаг — сохранился. Ошибся позже — откатился к сохранению.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Снимок</span><span class="arrow">→</span><span class="why">фиксирует файлы «как есть сейчас»</span></div>
+    <div class="row"><span class="what">Подпись</span><span class="arrow">→</span><span class="why">к каждому — короткое описание: что поменял</span></div>
+    <div class="row"><span class="what">Откат</span><span class="arrow">→</span><span class="why">всегда можно вернуться назад</span></div>
+  </div>
+  <div class="accent anim">Сохраняйся часто — не бойся ошибок</div>
+  <div class="footer anim">Коммит</div>
+</section>
+
+<!-- 7. GitHub Pages -->
+<section class="slide invert">
+  <h2 class="anim">GitHub Pages — твой сайт в интернете</h2>
+  <div class="big-text anim">
+    GitHub Pages — бесплатный хостинг прямо внутри GitHub.
+    Он превращает файлы из репозитория в живую веб-страницу по ссылке.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Живая ссылка</span><span class="arrow">→</span><span class="why">страница открывается с любого устройства</span></div>
+    <div class="row"><span class="what">Бесплатно</span><span class="arrow">→</span><span class="why">не нужен сервер и оплата хостинга</span></div>
+    <div class="row"><span class="what">Портфолио</span><span class="arrow">→</span><span class="why">ссылку можно скинуть друзьям и в резюме</span></div>
+  </div>
+  <div class="accent anim">Залил в репозиторий — ты в интернете</div>
+  <div class="footer anim">GitHub Pages</div>
+</section>
+
+<!-- 8. Итог -->
+<section class="slide">
+  <h2 class="anim">Итог</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">GitHub</span><span class="arrow">→</span><span class="why">облачный склад проектов с историей изменений</span></div>
+    <div class="row"><span class="what">Репозиторий</span><span class="arrow">→</span><span class="why">папка проекта, которая помнит все версии</span></div>
+    <div class="row"><span class="what">Коммит</span><span class="arrow">→</span><span class="why">точка сохранения — как сейв в игре</span></div>
+    <div class="row"><span class="what">Pages</span><span class="arrow">→</span><span class="why">бесплатная живая ссылка на ваш сайт</span></div>
+    <div class="row"><span class="what">MCP</span><span class="arrow">→</span><span class="why">мост, который даёт нейронке доступ к инструментам</span></div>
+  </div>
+  <div class="accent anim">Всё готово! Ты в интернете</div>
+  <div class="footer anim">Финиш</div>
+</section>
+
+<div class="nav">
+  <button id="prev" aria-label="Назад">←</button>
+  <span class="counter"><span id="cur">1</span> / <span id="total">9</span></span>
+  <button id="next" aria-label="Вперёд">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  let i = 0;
+  let animating = false;
+  document.getElementById('total').textContent = slides.length;
+
+  function updateProgress() {
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+  }
+
+  function playStagger(slide) {
+    slide.querySelectorAll('.anim').forEach((el, k) => {
+      el.style.animation = 'none';
+      void el.offsetHeight; // перезапуск анимации
+      el.style.animation = '';
+      el.style.animationDelay = (0.12 + k * 0.1) + 's';
+    });
+  }
+
+  function show(n, dir) {
+    if (animating) return;
+    animating = true;
+    setTimeout(() => animating = false, 750);
+
+    const old = slides[i];
+    const next = slides[(n + slides.length) % slides.length];
+    const forward = dir !== undefined ? dir > 0 : n > i;
+
+    // мгновенно ставим входящий слайд на нужную сторону
+    next.classList.add('no-anim');
+    next.classList.toggle('from-left', !forward);
+    void next.offsetHeight; // фиксируем позицию без анимации
+    next.classList.remove('no-anim');
+    next.classList.remove('from-left'); // стартовая точка уже зафиксирована reflow
+
+    // вынос текущего слайда в противоположную сторону
+    old.classList.remove('active');
+    old.classList.toggle('from-left', forward);
+
+    // входящий слайд плавно доезжает до места
+    next.classList.add('active');
+    i = (n + slides.length) % slides.length;
+    document.getElementById('cur').textContent = i + 1;
+
+    playStagger(next);
+    updateProgress();
+    paintChrome(next);
+  }
+
+  // контрастное состояние навигации и счётчика на тёмных слайдах
+  function paintChrome(slide) {
+    const invertNow = slide.classList.contains('invert');
+    document.querySelector('.nav').style.borderColor = invertNow ? 'var(--white)' : 'var(--black)';
+    document.querySelectorAll('.nav button').forEach(b => {
+      b.style.borderColor = invertNow ? 'var(--white)' : 'var(--black)';
+      b.style.color = invertNow ? 'var(--white)' : 'var(--black)';
+    });
+    document.querySelector('.counter').style.color = invertNow ? 'var(--white)' : 'var(--black)';
+  }
+
+  document.getElementById('next').onclick = () => show(i + 1, 1);
+  document.getElementById('prev').onclick = () => show(i - 1, -1);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(i + 1, 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(i - 1, -1);
+    if (e.key === 'Home') show(0, -1);
+    if (e.key === 'End') show(slides.length - 1, 1);
+  });
+
+  // свайпы на тач-экранах
+  let touchX = null;
+  document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+    touchX = null;
+  });
+
+  playStagger(slides[0]);
+  updateProgress();
+  paintChrome(slides[0]);
+</script>
+
+</body>
+</html>

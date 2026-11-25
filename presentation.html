@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Нейронки, MVP и Парето</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #000;
+    --white: #fff;
+    --gray: #888;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    background: var(--white);
+    color: var(--black);
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6vw 8vw;
+    background: var(--white);
+    color: var(--black);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(5vw);
+    transition:
+      opacity .55s cubic-bezier(.4, 0, .2, 1),
+      transform .55s cubic-bezier(.22, .61, .36, 1),
+      visibility 0s linear .55s;
+    will-change: opacity, transform;
+  }
+  .slide.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
+    transition:
+      opacity .55s cubic-bezier(.4, 0, .2, 1) .12s,
+      transform .6s cubic-bezier(.22, .61, .36, 1) .12s,
+      visibility 0s linear 0s;
+  }
+  .slide.invert {
+    background: var(--black);
+    color: var(--white);
+  }
+
+  /* Появление контента каскадом */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .slide.active .anim {
+    animation: fadeUp .7s cubic-bezier(.22, .61, .36, 1) both;
+  }
+
+  h1 {
+    font-size: 6.5vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+  h2 {
+    font-size: 4.2vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 4vh;
+  }
+  .subtitle {
+    font-size: 2vw;
+    font-weight: 400;
+    margin-top: 3vh;
+    max-width: 60ch;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5vw;
+    margin-top: 4vh;
+  }
+  .chip {
+    border: 2px solid currentColor;
+    border-radius: 100px;
+    padding: 1.4vh 2vw;
+    font-size: 1.6vw;
+    white-space: nowrap;
+    transition: background .25s ease, color .25s ease, transform .25s ease;
+  }
+  .chip:hover { transform: translateY(-4px); }
+  .chip.solid {
+    background: currentColor;
+  }
+  .chip.solid span {
+    color: var(--white);
+  }
+  .invert .chip.solid span { color: var(--black); }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 2.2vh;
+    margin-top: 4vh;
+  }
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: 2vw;
+    font-size: 1.9vw;
+  }
+  .row .what {
+    font-weight: 800;
+    min-width: 16vw;
+  }
+  .row .arrow { color: var(--gray); }
+  .row .why { font-weight: 400; }
+
+  .big-text {
+    font-size: 2.2vw;
+    line-height: 1.5;
+    max-width: 55ch;
+    margin-top: 3vh;
+  }
+
+  .accent {
+    font-size: 3.4vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1.2;
+    margin-top: 4vh;
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 4vh;
+    left: 8vw;
+    font-size: 1vw;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  .nav {
+    position: fixed;
+    bottom: 3.5vh;
+    right: 4vw;
+    display: flex;
+    align-items: center;
+    gap: 1.5vw;
+    z-index: 10;
+  }
+  .nav button {
+    background: none;
+    border: 2px solid var(--black);
+    border-radius: 100px;
+    width: 3.2vw;
+    height: 3.2vw;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 1.2vw;
+    cursor: pointer;
+    color: var(--black);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .25s ease, color .25s ease, transform .25s ease;
+  }
+  .nav button:hover { background: var(--black); color: var(--white); transform: scale(1.1); }
+  .nav button:active { transform: scale(0.95); }
+  .counter { font-size: 1.1vw; font-variant-numeric: tabular-nums; }
+
+  /* Плавный прогресс-бар сверху */
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 4px;
+    background: var(--black);
+    width: 0;
+    transition: width .55s cubic-bezier(.22, .61, .36, 1);
+    z-index: 20;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide, .slide.active, .slide.active .anim, .progress { transition: none; animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- 1. Титул -->
+<section class="slide invert active">
+  <h1 class="anim">Нейронки<br>в работе</h1>
+  <div class="subtitle anim">Зачем нужны нейросети, что такое MVP и правило Парето</div>
+  <div class="chips anim">
+    <div class="chip">Нейросети</div>
+    <div class="chip">MVP</div>
+    <div class="chip">Парето 80/20</div>
+  </div>
+  <div class="footer anim">Навигационный дизайн</div>
+</section>
+
+<!-- 2. Зачем нужны нейронки -->
+<section class="slide">
+  <h2 class="anim">Зачем нужны нейронки?</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Рутина</span><span class="arrow">→</span><span class="why">делают однотипную работу за тебя</span></div>
+    <div class="row"><span class="what">Скорость</span><span class="arrow">→</span><span class="why">часы работы превращаются в минуты</span></div>
+    <div class="row"><span class="what">Анализ</span><span class="arrow">→</span><span class="why">исследуют аудиторию и продукт</span></div>
+    <div class="row"><span class="what">Идеи</span><span class="arrow">→</span><span class="why">помогают найти решение и проверить гипотезы</span></div>
+  </div>
+  <div class="chips anim" style="margin-top:6vh">
+    <div class="chip solid"><span>Figma make</span></div>
+    <div class="chip">Opencode</div>
+    <div class="chip">DeepSeek</div>
+  </div>
+  <div class="footer anim">Нейросети — помощник, а не замена</div>
+</section>
+
+<!-- 3. MVP — определение -->
+<section class="slide">
+  <h2 class="anim">MVP — проверка идеи</h2>
+  <div class="big-text anim">
+    MVP (Minimum Viable Product) — минимально жизнеспособный продукт,
+    версия нового продукта, которая позволяет собрать максимум
+    проверенных знаний о клиентах с минимальными усилиями.
+  </div>
+  <div class="accent anim">Минимум усилий → максимум знаний</div>
+  <div class="footer anim">MVP</div>
+</section>
+
+<!-- 4. MVP — на практике -->
+<section class="slide">
+  <h2 class="anim">Как это выглядит на практике?</h2>
+  <div class="chips anim">
+    <div class="chip">Ключевые функции</div>
+    <div class="chip">Минимум наворотов</div>
+    <div class="chip">Быстрый тест</div>
+  </div>
+  <div class="big-text anim">
+    Пример: приложение такси только с базовыми функциями —
+    выбор адреса и оплата. Без бонусов, без музыки, без чатов.
+  </div>
+  <div class="footer anim">MVP</div>
+</section>
+
+<!-- 5. Принцип Парето -->
+<section class="slide invert">
+  <h2 class="anim">Принцип Парето</h2>
+  <div class="big-text anim">
+    <b>80% земель в Италии</b> принадлежало 20% населения
+    — Вильфредо Парето (1848–1923), экономист и математик.
+  </div>
+  <div class="big-text anim">
+    <b>80% дефектов</b> вызваны 20% причин
+    — Джозеф Джуран (1904–2008), бизнес-консультант.
+  </div>
+  <div class="accent anim">80% результата даёт 20% усилий</div>
+  <div class="footer anim">Парето 80/20</div>
+</section>
+
+<!-- 6. MVP + Парето -->
+<section class="slide">
+  <h2 class="anim">MVP + Парето</h2>
+  <div class="big-text anim">
+    MVP фокусируется на «20%», чтобы быстро проверить идею.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Шаг 1</span><span class="arrow">→</span><span class="why">выделить 20% функций, решающих 80% проблем пользователей</span></div>
+    <div class="row"><span class="what">Шаг 2</span><span class="arrow">→</span><span class="why">запустить MVP, собрать обратную связь</span></div>
+    <div class="row"><span class="what">Шаг 3</span><span class="arrow">→</span><span class="why">улучшать ключевые функции, а не добавлять новые</span></div>
+  </div>
+  <div class="footer anim">MVP + Парето</div>
+</section>
+
+<!-- 7. Итог -->
+<section class="slide">
+  <h2 class="anim">Итог</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Нейронки</span><span class="arrow">→</span><span class="why">ускоряют работу и снимают рутину</span></div>
+    <div class="row"><span class="what">MVP</span><span class="arrow">→</span><span class="why">быстро проверяет идею минимальными усилиями</span></div>
+    <div class="row"><span class="what">Парето</span><span class="arrow">→</span><span class="why">находит 20% действий, дающих 80% результата</span></div>
+  </div>
+  <div class="accent anim">Сначала главное, потом всё остальное</div>
+  <div class="footer anim">Финиш</div>
+</section>
+
+<div class="nav">
+  <button id="prev" aria-label="Назад">←</button>
+  <span class="counter"><span id="cur">1</span> / <span id="total">7</span></span>
+  <button id="next" aria-label="Вперёд">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  let i = 0;
+  let animating = false;
+  document.getElementById('total').textContent = slides.length;
+
+  function updateProgress() {
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+  }
+
+  function playStagger(slide) {
+    slide.querySelectorAll('.anim').forEach((el, k) => {
+      el.style.animation = 'none';
+      void el.offsetHeight; // перезапуск анимации
+      el.style.animation = '';
+      el.style.animationDelay = (0.12 + k * 0.1) + 's';
+    });
+  }
+
+  function show(n, dir) {
+    if (animating) return;
+    animating = true;
+    setTimeout(() => animating = false, 650);
+
+    const old = slides[i];
+    const next = slides[(n + slides.length) % slides.length];
+    const forward = dir !== undefined ? dir > 0 : n > i;
+
+    // направление выезда старого слайда
+    old.style.transform = 'translateX(' + (forward ? '-5vw' : '5vw') + ')';
+
+    // подготовка нового слайда со стороны прихода
+    next.style.transition = 'none';
+    next.style.transform = 'translateX(' + (forward ? '5vw' : '-5vw') + ')';
+    void next.offsetHeight;
+
+    old.classList.remove('active');
+    next.style.transition = '';
+    next.classList.add('active');
+    i = (n + slides.length) % slides.length;
+
+    playStagger(next);
+    updateProgress();
+
+    // вернуть старому слайду базовое смещение после перехода
+    setTimeout(() => { old.style.transform = ''; }, 600);
+  }
+
+  document.getElementById('next').onclick = () => show(i + 1, 1);
+  document.getElementById('prev').onclick = () => show(i - 1, -1);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(i + 1, 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(i - 1, -1);
+    if (e.key === 'Home') show(0, -1);
+    if (e.key === 'End') show(slides.length - 1, 1);
+  });
+
+  // свайпы на тач-экранах
+  let touchX = null;
+  document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+    touchX = null;
+  });
+
+  playStagger(slides[0]);
+  updateProgress();
+</script>
+
+</body>
+</html>

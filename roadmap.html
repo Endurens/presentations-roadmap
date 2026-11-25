@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Дорожная карта презентаций</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #000;
+    --white: #fff;
+    --gray: #888;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    background: var(--white);
+    color: var(--black);
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection { background: var(--black); color: var(--white); }
+
+  /* ---------- дорожная карта ---------- */
+  .map {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 6vh 6vw 6vh;
+  }
+
+  .stage {
+    position: relative;
+    display: flex;
+    gap: clamp(16px, 3vw, 44px);
+    padding-bottom: clamp(36px, 7vh, 72px);
+  }
+  /* линия таймлайна */
+  .stage::before {
+    content: "";
+    position: absolute;
+    left: clamp(21px, 2.6vw, 37px);
+    top: 58px;
+    bottom: 0;
+    width: 2px;
+    background: var(--black);
+  }
+  .stage:last-child::before { display: none; }
+
+  /* номер на линии */
+  .marker {
+    flex-shrink: 0;
+    width: clamp(44px, 5vw, 76px);
+    height: clamp(44px, 5vw, 76px);
+    border: 2px solid var(--black);
+    border-radius: 50%;
+    background: var(--white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(14px, 1.6vw, 22px);
+    font-weight: 900;
+    z-index: 1;
+    transition: background .25s ease, color .25s ease, transform .25s ease;
+  }
+  .stage:hover .marker {
+    background: var(--black);
+    color: var(--white);
+    transform: scale(1.08);
+  }
+
+  .card {
+    flex: 1;
+    border: 2px solid var(--black);
+    border-radius: 18px;
+    padding: clamp(20px, 3vw, 36px);
+    display: flex;
+    flex-direction: column;
+    gap: 1.6vh;
+    transition: transform .25s ease, box-shadow .25s ease;
+  }
+  .stage:hover .card,
+  .stage.hovered .card {
+    transform: translateY(-4px);
+    box-shadow: 8px 8px 0 var(--black);
+  }
+  /* «hover»-эффект для этапа у центра экрана (мобильные, без мыши) */
+  .stage.hovered .marker {
+    background: var(--black);
+    color: var(--white);
+    transform: scale(1.08);
+  }
+
+  .card h2 {
+    font-size: clamp(20px, 2.6vw, 34px);
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  .card .desc {
+    font-size: clamp(13px, 1.2vw, 16px);
+    line-height: 1.55;
+    color: var(--gray);
+    max-width: 62ch;
+  }
+  .card .file {
+    font-family: ui-monospace, "JetBrains Mono", Consolas, monospace;
+    font-size: clamp(10px, 0.95vw, 12px);
+    letter-spacing: 0.05em;
+    color: var(--gray);
+  }
+
+  .topic + .divider {
+    height: 2px;
+    background: var(--black);
+    margin: 1.5vh 0;
+    opacity: .15;
+  }
+  .topic h2 {
+    font-size: clamp(20px, 2.6vw, 34px);
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  .topic .desc {
+    font-size: clamp(13px, 1.2vw, 16px);
+    line-height: 1.55;
+    color: var(--gray);
+    max-width: 62ch;
+  }
+  .topic .file {
+    font-family: ui-monospace, "JetBrains Mono", Consolas, monospace;
+    font-size: clamp(10px, 0.95vw, 12px);
+    letter-spacing: 0.05em;
+    color: var(--gray);
+  }
+  .topic .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 1vh;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 1vh;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 2px solid var(--black);
+    border-radius: 100px;
+    padding: 10px 22px;
+    font-family: inherit;
+    font-size: clamp(11px, 1vw, 14px);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    color: var(--black);
+    background: var(--white);
+    cursor: pointer;
+    transition: background .25s ease, color .25s ease, transform .25s ease;
+  }
+  .btn:hover { background: var(--black); color: var(--white); transform: translateY(-2px); }
+  .btn:active { transform: scale(0.97); }
+  .btn.solid { background: var(--black); color: var(--white); }
+  .btn.solid:hover { background: var(--white); color: var(--black); }
+
+  /* ---------- подвал ---------- */
+  .note {
+    padding: 0 8vw 4vh;
+    font-size: clamp(11px, 1vw, 14px);
+    color: var(--gray);
+    text-align: center;
+  }
+
+  .footer {
+    padding: 6vh 8vw 8vh;
+    font-size: clamp(10px, 0.9vw, 12px);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  /* ---------- появление каскадом ---------- */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .anim { animation: fadeUp .7s cubic-bezier(.22, .61, .36, 1) both; }
+  .anim:nth-child(2) { animation-delay: .12s; }
+  .anim:nth-child(3) { animation-delay: .24s; }
+  .anim:nth-child(4) { animation-delay: .36s; }
+
+  .stage { opacity: 0; }
+  .stage.visible {
+    animation: fadeUp .7s cubic-bezier(.22, .61, .36, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .anim, .stage.visible { animation: none; opacity: 1; }
+    html { scroll-behavior: auto; }
+  }
+
+  @media (max-width: 640px) {
+    /* таймлайн */
+    .map { padding: 5vh 5vw 4vh; }
+    .stage { flex-direction: column; gap: 16px; padding-bottom: 44px; }
+    .stage::before { left: 21px; top: 43px; }
+    .marker { width: 44px; height: 44px; font-size: 14px; }
+    .card { margin-left: 60px; gap: 12px; padding: 20px 16px; border-radius: 14px; }
+
+    /* кнопки — удобный размер под палец, на всю ширину */
+    .actions, .topic .actions { gap: 10px; margin-top: 4px; }
+    .btn {
+      flex: 1 1 auto;
+      justify-content: center;
+      padding: 13px 14px;
+      min-height: 44px;
+      font-size: 12px;
+    }
+
+    .footer { padding: 4vh 7vw 6vh; text-align: center; letter-spacing: 0.12em; }
+  }
+
+  /* на тач-экранах hover-эффекты не нужны, чтобы не «залипали» */
+  @media (hover: none) {
+    .chip:hover { transform: none; }
+    .stage:hover .marker { background: var(--white); color: var(--black); transform: none; }
+    .stage:hover .card { transform: none; box-shadow: none; }
+    .btn:hover { background: var(--white); color: var(--black); transform: none; }
+    .btn.solid:hover { background: var(--black); color: var(--white); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Таймлайн -->
+<main class="map">
+
+  <div class="stage">
+    <div class="marker">01</div>
+    <div class="card">
+      <div class="topic">
+        <h2>Как работает нейросеть-агент</h2>
+        <div class="desc">Устройство ИИ-агента изнутри: как модель думает, планирует шаги, использует инструменты и доводит задачу до конца по цепочке решений.</div>
+        <div class="file">agent-presentation.html</div>
+        <div class="actions">
+          <a class="btn solid" href="agent-presentation.html" download="Как работает нейросеть-агент.html" onclick="return trackDownload(this)">↓ Скачать HTML</a>
+          <a class="btn" href="agent-presentation.pdf" download="Как работает нейросеть-агент.pdf" onclick="return trackDownload(this)">↓ Скачать PDF</a>
+          <a class="btn" href="agent-presentation.html" target="_blank">Открыть →</a>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="topic">
+        <h2>Нейронки, MVP и Парето</h2>
+        <div class="desc">Зачем нужны нейросети в работе, что такое минимально жизнеспособный продукт и как принцип Парето 80/20 помогает проверить идею с минимумом усилий.</div>
+        <div class="file">presentation.html</div>
+        <div class="actions">
+          <a class="btn solid" href="presentation.html" download="Нейронки, MVP и Парето.html" onclick="return trackDownload(this)">↓ Скачать HTML</a>
+          <a class="btn" href="presentation.pdf" download="Нейронки, MVP и Парето.pdf" onclick="return trackDownload(this)">↓ Скачать PDF</a>
+          <a class="btn" href="presentation.html" target="_blank">Открыть →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="marker">02</div>
+    <div class="card">
+      <h2>Скиллы в работе</h2>
+      <div class="desc">Что такое скиллы, как они расширяют возможности нейросети-агента и почему правильный скилл экономит часы работы.</div>
+      <div class="file">skills-presentation.html</div>
+      <div class="actions">
+        <a class="btn solid" href="skills-presentation.html" download="Скиллы в работе.html" onclick="return trackDownload(this)">↓ Скачать HTML</a>
+        <a class="btn" href="skills-presentation.pdf" download="Скиллы в работе.pdf" onclick="return trackDownload(this)">↓ Скачать PDF</a>
+        <a class="btn" href="skills-presentation.html" target="_blank">Открыть →</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="marker">03</div>
+    <div class="card">
+      <h2>GitHub, Git и MCP — просто</h2>
+      <div class="desc">Основы контроля версий, работа с GitHub и подключение MCP-серверов — всё, что нужно, чтобы агент умел работать с кодом и репозиториями.</div>
+      <div class="file">git-github-mcp-presentation.html</div>
+      <div class="actions">
+        <a class="btn solid" href="git-github-mcp-presentation.html" download="GitHub, Git и MCP — просто.html" onclick="return trackDownload(this)">↓ Скачать HTML</a>
+        <a class="btn" href="git-github-mcp-presentation.pdf" download="GitHub, Git и MCP — просто.pdf" onclick="return trackDownload(this)">↓ Скачать PDF</a>
+        <a class="btn" href="git-github-mcp-presentation.html" target="_blank">Открыть →</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="marker">04</div>
+    <div class="card">
+      <div class="topic">
+        <h2>Аудит, рефакторинг и автопилот в opencode</h2>
+        <div class="desc">Как проверить качество кода, провести рефакторинг и доверить рутину режиму автопилота в opencode.</div>
+        <div class="file">autopilot-presentation.html</div>
+        <div class="actions">
+          <a class="btn solid" href="autopilot-presentation.html" download="Аудит, рефакторинг и автопилот в opencode.html" onclick="return trackDownload(this)">↓ Скачать HTML</a>
+          <a class="btn" href="autopilot-presentation.pdf" download="Аудит, рефакторинг и автопилот в opencode.pdf" onclick="return trackDownload(this)">↓ Скачать PDF</a>
+          <a class="btn" href="autopilot-presentation.html" target="_blank">Открыть →</a>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="topic">
+        <h2>Сайт → Программа: делаем установщик</h2>
+        <div class="desc">Финальный шаг: превращаем веб-приложение на React в настоящую десктоп-программу с помощью Electron и собираем собственный установщик.</div>
+        <div class="file">react-electron-presentation.html</div>
+        <div class="actions">
+          <a class="btn solid" href="react-electron-presentation.html" download="Сайт → Программа — делаем установщик.html" onclick="return trackDownload(this)">↓ Скачать HTML</a>
+          <a class="btn" href="react-electron-presentation.pdf" download="Сайт → Программа — делаем установщик.pdf" onclick="return trackDownload(this)">↓ Скачать PDF</a>
+          <a class="btn" href="react-electron-presentation.html" target="_blank">Открыть →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="marker">05</div>
+    <div class="card">
+      <h2>Лендинг проекта: OpenCode × Amvera</h2>
+      <div class="desc">Создаём посадочную страницу проекта целиком в OpenCode — разведка, описание, архитектура, сборка, аудит и рефакторинг — и публикуем её в облаке Amvera: всё делает агент, от нас — только создать аккаунт.</div>
+      <div class="file">landing-amvera-presentation.html</div>
+      <div class="actions">
+        <a class="btn solid" href="landing-amvera-presentation.html" download="Лендинг проекта — OpenCode × Amvera.html" onclick="return trackDownload(this)">↓ Скачать HTML</a>
+        <a class="btn" href="landing-amvera-presentation.pdf" download="Лендинг проекта — OpenCode × Amvera.pdf" onclick="return trackDownload(this)">↓ Скачать PDF</a>
+        <a class="btn" href="landing-amvera-presentation.html" target="_blank">Открыть →</a>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="note">Если файл открылся в браузере вместо скачивания — кликните по кнопке правой кнопкой мыши и выберите «Сохранить ссылку как…»</div>
+
+<div class="footer">Дорожная карта · от нейронок до установщика</div>
+
+<script>
+  // появление этапов при прокрутке
+  const stages = document.querySelectorAll('.stage');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    stages.forEach(s => io.observe(s));
+  } else {
+    stages.forEach(s => s.classList.add('visible'));
+  }
+
+  // на мобильных этап у центра экрана получает «hover»-эффект
+  const touchMode = window.matchMedia('(hover: none), (max-width: 640px)');
+  let ticking = false;
+
+  function updateCenterStage() {
+    ticking = false;
+    if (!touchMode.matches) {
+      stages.forEach(s => s.classList.remove('hovered'));
+      return;
+    }
+    const mid = window.innerHeight / 2;
+    let best = null;
+    let bestDist = Infinity;
+    stages.forEach(s => {
+      const r = s.getBoundingClientRect();
+      const d = Math.abs(r.top + r.height / 2 - mid);
+      if (d < bestDist) { bestDist = d; best = s; }
+    });
+    stages.forEach(s => s.classList.toggle('hovered', s === best));
+  }
+
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(updateCenterStage);
+    }
+  }, { passive: true });
+  window.addEventListener('resize', updateCenterStage);
+  updateCenterStage();
+
+  // скачивание:
+  //  - на http/https читаем файл через fetch и отдаём как blob (надёжное скачивание);
+  //  - на file:// браузер блокирует скриптам доступ к локальным файлам,
+  //    поэтому не мешаем: нативный атрибут download сам скачает файл.
+  function trackDownload(a) {
+    if (location.protocol === 'file:') return true;
+
+    const url = a.getAttribute('href');
+    const name = a.getAttribute('download') || url;
+    fetch(url)
+      .then(r => r.ok ? r.blob() : Promise.reject())
+      .then(blob => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+      })
+      .catch(() => { window.location.href = url; });
+    return false;
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Сайт → Программа: делаем установщик</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --black: #000;
+      --white: #fff;
+      --gray: #888;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      background: var(--white);
+      color: var(--black);
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 6vw 8vw;
+      background: var(--white);
+      color: var(--black);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateX(5vw);
+      transition:
+        opacity .55s cubic-bezier(.4, 0, .2, 1),
+        transform .55s cubic-bezier(.22, .61, .36, 1),
+        visibility 0s linear .55s;
+      will-change: opacity, transform;
+    }
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateX(0);
+      transition:
+        opacity .55s cubic-bezier(.4, 0, .2, 1) .12s,
+        transform .6s cubic-bezier(.22, .61, .36, 1) .12s,
+        visibility 0s linear 0s;
+    }
+    .slide.invert {
+      background: var(--black);
+      color: var(--white);
+    }
+    /* стартовые позиции для входа/выхода слайдов */
+    .slide.from-left { transform: translateX(-5vw); }
+    .slide.no-anim { transition: none !important; }
+
+    /* Появление контента каскадом */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .slide.active .anim {
+      animation: fadeUp .7s cubic-bezier(.22, .61, .36, 1) both;
+    }
+
+    h1 {
+      font-size: 6.5vw;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      line-height: 0.95;
+    }
+    h2 {
+      font-size: 4.2vw;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 4vh;
+    }
+    .subtitle {
+      font-size: 2vw;
+      font-weight: 400;
+      margin-top: 3vh;
+      max-width: 60ch;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5vw;
+      margin-top: 4vh;
+    }
+    .chip {
+      border: 2px solid currentColor;
+      border-radius: 100px;
+      padding: 1.4vh 2vw;
+      font-size: 1.6vw;
+      white-space: nowrap;
+      transition: background .25s ease, color .25s ease, transform .25s ease;
+    }
+    .chip:hover { transform: translateY(-4px); }
+    .chip.solid {
+      background: currentColor;
+    }
+    .chip.solid span {
+      color: var(--white);
+    }
+    .invert .chip.solid span { color: var(--black); }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 2.2vh;
+      margin-top: 4vh;
+    }
+    .row {
+      display: flex;
+      align-items: baseline;
+      gap: 2vw;
+      font-size: 1.9vw;
+    }
+    .row .what {
+      font-weight: 800;
+      min-width: 16vw;
+    }
+    .row .arrow { color: var(--gray); }
+    .row .why { font-weight: 400; }
+
+    .big-text {
+      font-size: 2.2vw;
+      line-height: 1.5;
+      max-width: 55ch;
+      margin-top: 3vh;
+    }
+
+    .accent {
+      font-size: 3.4vw;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1.2;
+      margin-top: 4vh;
+    }
+
+    .footer {
+      position: absolute;
+      bottom: 4vh;
+      left: 8vw;
+      font-size: 1vw;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gray);
+    }
+
+    .nav {
+      position: fixed;
+      bottom: 3.5vh;
+      right: 4vw;
+      display: flex;
+      align-items: center;
+      gap: 1.5vw;
+      z-index: 10;
+    }
+    .nav button {
+      background: none;
+      border: 2px solid var(--black);
+      border-radius: 100px;
+      width: 3.2vw;
+      height: 3.2vw;
+      min-width: 40px;
+      min-height: 40px;
+      font-size: 1.2vw;
+      cursor: pointer;
+      color: var(--black);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .25s ease, color .25s ease, transform .25s ease;
+    }
+    .nav button:hover { background: var(--black); color: var(--white); transform: scale(1.1); }
+    .nav button:active { transform: scale(0.95); }
+    .counter { font-size: 1.1vw; font-variant-numeric: tabular-nums; }
+
+    /* Плавный прогресс-бар сверху */
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      background: var(--black);
+      width: 0;
+      transition: width .55s cubic-bezier(.22, .61, .36, 1);
+      z-index: 20;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .slide, .slide.active, .slide.active .anim, .progress { transition: none; animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- 1. Титул -->
+<section class="slide invert active">
+  <h1 class="anim">Сайт<br>→ Программа</h1>
+  <div class="subtitle anim">Превращаем сайт в настоящую программу для компьютера: со своим окном, иконкой и установщиком. Шесть шагов — шесть готовых запросов, всё делает opencode</div>
+  <div class="chips anim">
+    <div class="chip">Разведка</div>
+    <div class="chip">Vite</div>
+    <div class="chip">Окно</div>
+    <div class="chip">Установщик</div>
+    <div class="chip">Проверка</div>
+    <div class="chip">Иконка</div>
+  </div>
+  <div class="footer anim">Ничего вручную — всё делает opencode</div>
+</section>
+
+<!-- 2. Обёртка — что это -->
+<section class="slide">
+  <h2 class="anim">Программа из сайта</h2>
+  <div class="big-text anim">
+    Есть специальная «обёртка» — Electron. Она превращает сайт
+    в отдельную программу для компьютера: со своим окном и иконкой.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Так сделаны</span><span class="arrow">→</span><span class="why">VS Code, Telegram Desktop, Slack, Discord</span></div>
+    <div class="row"><span class="what">Окно</span><span class="arrow">→</span><span class="why">не вкладка в браузере, а отдельная программа</span></div>
+    <div class="row"><span class="what">Раздача</span><span class="arrow">→</span><span class="why">установщик можно отправить друзьям и пользователям</span></div>
+  </div>
+  <div class="accent anim">Сайт в окне — программа на столе</div>
+  <div class="footer anim">Обёртка Electron</div>
+</section>
+
+<!-- 3. Маршрут -->
+<section class="slide">
+  <h2 class="anim">Маршрут из 6 шагов</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Шаг 0</span><span class="arrow">→</span><span class="why">разведка: смотрим, что за проект — ничего не трогаем</span></div>
+    <div class="row"><span class="what">Шаг 1</span><span class="arrow">→</span><span class="why">Vite — современный «движок» для запуска и сборки</span></div>
+    <div class="row"><span class="what">Шаг 2</span><span class="arrow">→</span><span class="why">окно программы вокруг сайта</span></div>
+    <div class="row"><span class="what">Шаг 3</span><span class="arrow">→</span><span class="why">установщик: программа, которую можно поставить</span></div>
+    <div class="row"><span class="what">Шаг 4</span><span class="arrow">→</span><span class="why">проверка: убеждаемся, что всё работает</span></div>
+    <div class="row"><span class="what">Шаг 5</span><span class="arrow">→</span><span class="why">своя иконка: логотип на ярлыке программы</span></div>
+  </div>
+  <div class="accent anim">Каждый шаг — один запрос</div>
+  <div class="footer anim">Маршрут</div>
+</section>
+
+<!-- 4. Шаг 0 — разведка -->
+<section class="slide invert">
+  <h2 class="anim">Шаг 0 — разведка</h2>
+  <div class="big-text anim">
+    Прежде чем что-то делать — смотрим, с чем работаем.
+    opencode читает проект и докладывает, что в нём есть.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Паспорт</span><span class="arrow">→</span><span class="why">файл с именем, версией и настройками проекта</span></div>
+    <div class="row"><span class="what">Движок</span><span class="arrow">→</span><span class="why">чем проект запускается и собирается прямо сейчас</span></div>
+    <div class="row"><span class="what">Стартовая страница</span><span class="arrow">→</span><span class="why">откуда начинается сайт</span></div>
+  </div>
+  <div class="accent anim">Ни-че-го не меняет — только доклад</div>
+  <div class="footer anim">Разведка</div>
+</section>
+
+<!-- 5. Шаг 1 — Vite -->
+<section class="slide">
+  <h2 class="anim">Шаг 1 — знакомьтесь: Vite</h2>
+  <div class="big-text anim">
+    Vite («вите», с франц. — быстро) — это «движок» проекта:
+    он запускает сайт во время работы и собирает финальную
+    версию, которую можно распространять.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Запускает</span><span class="arrow">→</span><span class="why">сайт открывается на вашем компьютере, правки видны сразу</span></div>
+    <div class="row"><span class="what">Собирает</span><span class="arrow">→</span><span class="why">готовит финальную версию — компактную и быструю</span></div>
+    <div class="row"><span class="what">Подключает</span><span class="arrow">→</span><span class="why">opencode сам всё установит, настроит и проверит</span></div>
+  </div>
+  <div class="accent anim">Сайт работает — идём дальше</div>
+  <div class="footer anim">Движок Vite</div>
+</section>
+
+<!-- 6. Шаг 2 — окно -->
+<section class="slide invert">
+  <h2 class="anim">Шаг 2 — окно программы</h2>
+  <div class="big-text anim">
+    opencode создаёт главное окно программы — как у любого
+    приложения на компьютере — и открывает в нём ваш сайт.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">В работе</span><span class="arrow">→</span><span class="why">окно берёт сайт с рабочего сервера на вашем компьютере</span></div>
+    <div class="row"><span class="what">Готовая версия</span><span class="arrow">→</span><span class="why">окно открывает сайт прямо с диска, без интернета</span></div>
+    <div class="row"><span class="what">Пустое окно</span><span class="arrow">→</span><span class="why">частая мелкая неполадка — чинится одной строчкой настроек</span></div>
+  </div>
+  <div class="accent anim">Сайт живёт в окне программы</div>
+  <div class="footer anim">Окно Electron</div>
+</section>
+
+<!-- 7. Шаг 3 — установщик -->
+<section class="slide">
+  <h2 class="anim">Шаг 3 — установщик</h2>
+  <div class="big-text anim">
+    Теперь делаем установщик — программу можно поставить
+    на любой компьютер, как обычное приложение.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Windows</span><span class="arrow">→</span><span class="why">мастер установки: «Далее», выбор папки, ярлык на столе</span></div>
+    <div class="row"><span class="what">Mac</span><span class="arrow">→</span><span class="why">образ диска: программу перетаскиваешь в Applications</span></div>
+    <div class="row"><span class="what">Результат</span><span class="arrow">→</span><span class="why">готовый установщик лежит в отдельной папке проекта</span></div>
+  </div>
+  <div class="accent anim">Установили — открылось и работает</div>
+  <div class="footer anim">Установщик</div>
+</section>
+
+<!-- 8. Шаги 4–5 — проверка и иконка -->
+<section class="slide invert">
+  <h2 class="anim">Шаги 4–5 — проверка и лого</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Сайт</span><span class="arrow">→</span><span class="why">открывается и работает</span></div>
+    <div class="row"><span class="what">Окно</span><span class="arrow">→</span><span class="why">открывается, кнопки и переходы не ломаются</span></div>
+    <div class="row"><span class="what">Установщик</span><span class="arrow">→</span><span class="why">собирается и ставится без ошибок</span></div>
+    <div class="row"><span class="what">Иконка</span><span class="arrow">→</span><span class="why">ваш логотип вместо стандартной картинки</span></div>
+  </div>
+  <div class="accent anim">Сверяйте доклад с реальностью</div>
+  <div class="footer anim">Проверка и иконка</div>
+</section>
+
+<!-- 9. Итог -->
+<section class="slide">
+  <h2 class="anim">Итог</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Сайт</span><span class="arrow">→</span><span class="why">запускается и собирается на новом «движке»</span></div>
+    <div class="row"><span class="what">Программа</span><span class="arrow">→</span><span class="why">сайт живёт в собственном окне на рабочем столе</span></div>
+    <div class="row"><span class="what">Установщик</span><span class="arrow">→</span><span class="why">можно раздавать друзьям и пользователям</span></div>
+    <div class="row"><span class="what">Иконка</span><span class="arrow">→</span><span class="why">фирменная — на ярлыке, в панели задач и Dock</span></div>
+  </div>
+  <div class="accent anim">Обновили сайт → пересобрали → новый установщик</div>
+  <div class="footer anim">Финиш</div>
+</section>
+
+<div class="nav">
+  <button id="prev" aria-label="Назад">←</button>
+  <span class="counter"><span id="cur">1</span> / <span id="total">9</span></span>
+  <button id="next" aria-label="Вперёд">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  let i = 0;
+  let animating = false;
+  document.getElementById('total').textContent = slides.length;
+
+  function updateProgress() {
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+  }
+
+  function playStagger(slide) {
+    slide.querySelectorAll('.anim').forEach((el, k) => {
+      el.style.animation = 'none';
+      void el.offsetHeight; // перезапуск анимации
+      el.style.animation = '';
+      el.style.animationDelay = (0.12 + k * 0.1) + 's';
+    });
+  }
+
+  function show(n, dir) {
+    if (animating) return;
+    animating = true;
+    setTimeout(() => animating = false, 750);
+
+    const old = slides[i];
+    const next = slides[(n + slides.length) % slides.length];
+    const forward = dir !== undefined ? dir > 0 : n > i;
+
+    // мгновенно ставим входящий слайд на нужную сторону
+    next.classList.add('no-anim');
+    next.classList.toggle('from-left', !forward);
+    void next.offsetHeight; // фиксируем позицию без анимации
+    next.classList.remove('no-anim');
+    next.classList.remove('from-left'); // стартовая точка уже зафиксирована reflow
+
+    // вынос текущего слайда в противоположную сторону
+    old.classList.remove('active');
+    old.classList.toggle('from-left', forward);
+
+    // входящий слайд плавно доезжает до места
+    next.classList.add('active');
+    i = (n + slides.length) % slides.length;
+    document.getElementById('cur').textContent = i + 1;
+
+    playStagger(next);
+    updateProgress();
+    paintChrome(next);
+  }
+
+  // контрастное состояние навигации и счётчика на тёмных слайдах
+  function paintChrome(slide) {
+    const invertNow = slide.classList.contains('invert');
+    document.querySelector('.nav').style.borderColor = invertNow ? 'var(--white)' : 'var(--black)';
+    document.querySelectorAll('.nav button').forEach(b => {
+      b.style.borderColor = invertNow ? 'var(--white)' : 'var(--black)';
+      b.style.color = invertNow ? 'var(--white)' : 'var(--black)';
+    });
+    document.querySelector('.counter').style.color = invertNow ? 'var(--white)' : 'var(--black)';
+  }
+
+  document.getElementById('next').onclick = () => show(i + 1, 1);
+  document.getElementById('prev').onclick = () => show(i - 1, -1);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(i + 1, 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(i - 1, -1);
+    if (e.key === 'Home') show(0, -1);
+    if (e.key === 'End') show(slides.length - 1, 1);
+  });
+
+  // свайпы на тач-экранах
+  let touchX = null;
+  document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+    touchX = null;
+  });
+
+  playStagger(slides[0]);
+  updateProgress();
+  paintChrome(slides[0]);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,398 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Скиллы в работе</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #000;
+    --white: #fff;
+    --gray: #888;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    background: var(--white);
+    color: var(--black);
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6vw 8vw;
+    background: var(--white);
+    color: var(--black);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(5vw);
+    transition:
+      opacity .55s cubic-bezier(.4, 0, .2, 1),
+      transform .55s cubic-bezier(.22, .61, .36, 1),
+      visibility 0s linear .55s;
+    will-change: opacity, transform;
+  }
+  .slide.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
+    transition:
+      opacity .55s cubic-bezier(.4, 0, .2, 1) .12s,
+      transform .6s cubic-bezier(.22, .61, .36, 1) .12s,
+      visibility 0s linear 0s;
+  }
+  .slide.invert {
+    background: var(--black);
+    color: var(--white);
+  }
+  /* стартовые позиции для входа/выхода слайдов */
+  .slide.from-left { transform: translateX(-5vw); }
+  .slide.no-anim { transition: none !important; }
+
+  /* Появление контента каскадом */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .slide.active .anim {
+    animation: fadeUp .7s cubic-bezier(.22, .61, .36, 1) both;
+  }
+
+  h1 {
+    font-size: 6.5vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+  h2 {
+    font-size: 4.2vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 4vh;
+  }
+  .subtitle {
+    font-size: 2vw;
+    font-weight: 400;
+    margin-top: 3vh;
+    max-width: 60ch;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5vw;
+    margin-top: 4vh;
+  }
+  .chip {
+    border: 2px solid currentColor;
+    border-radius: 100px;
+    padding: 1.4vh 2vw;
+    font-size: 1.6vw;
+    white-space: nowrap;
+    transition: background .25s ease, color .25s ease, transform .25s ease;
+  }
+  .chip:hover { transform: translateY(-4px); }
+  .chip.solid {
+    background: currentColor;
+  }
+  .chip.solid span {
+    color: var(--white);
+  }
+  .invert .chip.solid span { color: var(--black); }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 2.2vh;
+    margin-top: 4vh;
+  }
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: 2vw;
+    font-size: 1.9vw;
+  }
+  .row .what {
+    font-weight: 800;
+    min-width: 16vw;
+  }
+  .row .arrow { color: var(--gray); }
+  .row .why { font-weight: 400; }
+
+  .big-text {
+    font-size: 2.2vw;
+    line-height: 1.5;
+    max-width: 55ch;
+    margin-top: 3vh;
+  }
+
+  .accent {
+    font-size: 3.4vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1.2;
+    margin-top: 4vh;
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 4vh;
+    left: 8vw;
+    font-size: 1vw;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  .nav {
+    position: fixed;
+    bottom: 3.5vh;
+    right: 4vw;
+    display: flex;
+    align-items: center;
+    gap: 1.5vw;
+    z-index: 10;
+  }
+  .nav button {
+    background: none;
+    border: 2px solid var(--black);
+    border-radius: 100px;
+    width: 3.2vw;
+    height: 3.2vw;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 1.2vw;
+    cursor: pointer;
+    color: var(--black);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .25s ease, color .25s ease, transform .25s ease;
+  }
+  .nav button:hover { background: var(--black); color: var(--white); transform: scale(1.1); }
+  .nav button:active { transform: scale(0.95); }
+  .counter { font-size: 1.1vw; font-variant-numeric: tabular-nums; }
+
+  /* Плавный прогресс-бар сверху */
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 4px;
+    background: var(--black);
+    width: 0;
+    transition: width .55s cubic-bezier(.22, .61, .36, 1);
+    z-index: 20;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide, .slide.active, .slide.active .anim, .progress { transition: none; animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- 1. Титул -->
+<section class="slide invert active">
+  <h1 class="anim">Скиллы<br>в работе</h1>
+  <div class="subtitle anim">Три готовых скилла, которые превращают нейронку в команду</div>
+  <div class="chips anim">
+    <div class="chip">Grill me</div>
+    <div class="chip">UI-UX Pro Max</div>
+    <div class="chip">Senior Designer</div>
+  </div>
+  <div class="footer anim">OpenCode · Claude Code</div>
+</section>
+
+<!-- 2. Скиллы — что это -->
+<section class="slide">
+  <h2 class="anim">Скиллы — апгрейд нейронки</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Скилл</span><span class="arrow">→</span><span class="why">база знаний, которую нейронка читает перед работой</span></div>
+    <div class="row"><span class="what">Установка</span><span class="arrow">→</span><span class="why">готовые скиллы ставятся одним сообщением в чат</span></div>
+    <div class="row"><span class="what">Перезапуск</span><span class="arrow">→</span><span class="why">скиллы подхватываются только при старте OpenCode</span></div>
+  </div>
+  <div class="accent anim">Не новый ИИ — новый отдел</div>
+  <div class="footer anim">Скиллы</div>
+</section>
+
+<!-- 3. Grill me — суть -->
+<section class="slide invert">
+  <h2 class="anim">Grill me — допросчик</h2>
+  <div class="big-text anim">
+    Главная ошибка новичка — принять первый ответ нейронки за истину.
+    Grill me работает ровно наоборот: сначала допрос, потом код.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Допрашивает</span><span class="arrow">→</span><span class="why">задаёт неудобные вопросы до первой строчки кода</span></div>
+    <div class="row"><span class="what">Ломает план</span><span class="arrow">→</span><span class="why">находит слабые места и дыры в вашей идее</span></div>
+    <div class="row"><span class="what">Решения</span><span class="arrow">→</span><span class="why">заставляет принять их самому — не списать у нейронки</span></div>
+  </div>
+  <div class="accent anim">Не верь нейронке слепо</div>
+  <div class="footer anim">Скилл 1 · от Мэтта Покока</div>
+</section>
+
+<!-- 4. UI-UX Pro Max — суть -->
+<section class="slide">
+  <h2 class="anim">UI-UX Pro Max — дизайнер</h2>
+  <div class="big-text anim">
+    Решает проблему «дефолтного AI-дизайна» — тех самых одинаковых фиолетовых градиентов, которые вы видели везде.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">79 стилей</span><span class="arrow">→</span><span class="why">визуальные направления на выбор</span></div>
+    <div class="row"><span class="what">192 палитры</span><span class="arrow">→</span><span class="why">осмысленные цветовые решения, а не рандом</span></div>
+    <div class="row"><span class="what">74 шрифтовые пары</span><span class="arrow">→</span><span class="why">типографика, которая работает вместе</span></div>
+    <div class="row"><span class="what">119 UX-правил</span><span class="arrow">→</span><span class="why">объяснение каждой кнопки и отступа</span></div>
+  </div>
+  <div class="accent anim">Не рисует — объясняет почему</div>
+  <div class="footer anim">Скилл 2</div>
+</section>
+
+<!-- 5. Senior Designer — суть -->
+<section class="slide invert">
+  <h2 class="anim">Senior Designer — сеньор</h2>
+  <div class="big-text anim">
+    Джуниор сразу кидается рисовать. Сеньор делает иначе — как настоящий дизайнер по найму.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Сначала система</span><span class="arrow">→</span><span class="why">фиксирует типографику, цвет и сетку</span></div>
+    <div class="row"><span class="what">Потом варианты</span><span class="arrow">→</span><span class="why">даёт несколько макетов на выбор, а не один</span></div>
+    <div class="row"><span class="what">Ловит тропы</span><span class="arrow">→</span><span class="why">кислотные градиенты, эмодзи-буллеты, шаблонность</span></div>
+    <div class="row"><span class="what">Проверка</span><span class="arrow">→</span><span class="why">смотрит результат в реальном браузере</span></div>
+  </div>
+  <div class="accent anim">Сначала решение, потом макет</div>
+  <div class="footer anim">Скилл 3</div>
+</section>
+
+<!-- 6. Попробуйте дома -->
+<section class="slide invert">
+  <h2 class="anim">Попробуйте дома</h2>
+  <div class="subtitle anim">Установите три скилла и прогоните через них свой проект</div>
+  <div class="chips anim" style="margin-top:5vh">
+    <div class="chip">План проекта — через допрос Grill me</div>
+    <div class="chip">Лендинг своего MVP — через UI-UX Pro Max</div>
+    <div class="chip solid"><span>Главный экран своего приложения — через Senior Designer</span></div>
+  </div>
+  <div class="accent anim">Скиллы ставятся за минуту</div>
+  <div class="footer anim">Напрягаться на 20%, больше не нужно</div>
+</section>
+
+<!-- 7. Итог -->
+<section class="slide">
+  <h2 class="anim">Итог</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Grill me</span><span class="arrow">→</span><span class="why">находит дыры в плане до того, как написан код</span></div>
+    <div class="row"><span class="what">UI-UX Pro Max</span><span class="arrow">→</span><span class="why">собирает дизайн-систему и объясняет каждое решение</span></div>
+    <div class="row"><span class="what">Senior Designer</span><span class="arrow">→</span><span class="why">сначала визуальная система, потом варианты макетов</span></div>
+  </div>
+  <div class="accent anim">Скиллы делают нейронку командой</div>
+  <div class="footer anim">Финиш</div>
+</section>
+
+<div class="nav">
+  <button id="prev" aria-label="Назад">←</button>
+  <span class="counter"><span id="cur">1</span> / <span id="total">7</span></span>
+  <button id="next" aria-label="Вперёд">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  let i = 0;
+  let animating = false;
+  document.getElementById('total').textContent = slides.length;
+
+  function updateProgress() {
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+  }
+
+  function playStagger(slide) {
+    slide.querySelectorAll('.anim').forEach((el, k) => {
+      el.style.animation = 'none';
+      void el.offsetHeight; // перезапуск анимации
+      el.style.animation = '';
+      el.style.animationDelay = (0.12 + k * 0.1) + 's';
+    });
+  }
+
+  function show(n, dir) {
+    if (animating) return;
+    animating = true;
+    setTimeout(() => animating = false, 750);
+
+    const old = slides[i];
+    const next = slides[(n + slides.length) % slides.length];
+    const forward = dir !== undefined ? dir > 0 : n > i;
+
+    // мгновенно ставим входящий слайд на нужную сторону
+    next.classList.add('no-anim');
+    next.classList.toggle('from-left', !forward);
+    void next.offsetHeight; // фиксируем позицию без анимации
+    next.classList.remove('no-anim');
+    next.classList.remove('from-left'); // стартовая точка уже зафиксирована reflow
+
+    // вынос текущего слайда в противоположную сторону
+    old.classList.remove('active');
+    old.classList.toggle('from-left', forward);
+
+    // входящий слайд плавно доезжает до места
+    next.classList.add('active');
+    i = (n + slides.length) % slides.length;
+    document.getElementById('cur').textContent = i + 1;
+
+    playStagger(next);
+    updateProgress();
+    paintChrome(next);
+  }
+
+  // контрастное состояние навигации и счётчика на тёмных слайдах
+  function paintChrome(slide) {
+    const invertNow = slide.classList.contains('invert');
+    document.querySelector('.nav').style.borderColor = invertNow ? 'var(--white)' : 'var(--black)';
+    document.querySelectorAll('.nav button').forEach(b => {
+      b.style.borderColor = invertNow ? 'var(--white)' : 'var(--black)';
+      b.style.color = invertNow ? 'var(--white)' : 'var(--black)';
+    });
+    document.querySelector('.counter').style.color = invertNow ? 'var(--white)' : 'var(--black)';
+  }
+
+  document.getElementById('next').onclick = () => show(i + 1, 1);
+  document.getElementById('prev').onclick = () => show(i - 1, -1);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(i + 1, 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(i - 1, -1);
+    if (e.key === 'Home') show(0, -1);
+    if (e.key === 'End') show(slides.length - 1, 1);
+  });
+
+  // свайпы на тач-экранах
+  let touchX = null;
+  document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+    touchX = null;
+  });
+
+  playStagger(slides[0]);
+  updateProgress();
+  paintChrome(slides[0]);
+</script>
+
+</body>
+</html>

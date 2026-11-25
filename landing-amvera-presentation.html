@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Лендинг проекта: OpenCode × Amvera</title>
+<meta name="description" content="Презентация к инструкции: создаём посадочную страницу нашего проекта целиком в OpenCode — разведка, описание, архитектура, сборка, аудит, рефакторинг — и публикуем в облаке Amvera. В кабинете всё делает агент через навык playwright: от нас — только создать аккаунт.">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #000;
+    --white: #fff;
+    --gray: #888;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    background: var(--white);
+    color: var(--black);
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6vw 8vw;
+    background: var(--white);
+    color: var(--black);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(5vw);
+    transition:
+      opacity .55s cubic-bezier(.4, 0, .2, 1),
+      transform .55s cubic-bezier(.22, .61, .36, 1),
+      visibility 0s linear .55s;
+    will-change: opacity, transform;
+  }
+  .slide.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
+    transition:
+      opacity .55s cubic-bezier(.4, 0, .2, 1) .12s,
+      transform .6s cubic-bezier(.22, .61, .36, 1) .12s,
+      visibility 0s linear 0s;
+  }
+  .slide.invert {
+    background: var(--black);
+    color: var(--white);
+  }
+  /* стартовые позиции для входа/выхода слайдов */
+  .slide.from-left { transform: translateX(-5vw); }
+  .slide.no-anim { transition: none !important; }
+
+  /* Появление контента каскадом */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .slide.active .anim {
+    animation: fadeUp .7s cubic-bezier(.22, .61, .36, 1) both;
+  }
+
+  h1 {
+    font-size: 6.5vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+  h2 {
+    font-size: 4.2vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 4vh;
+  }
+  .subtitle {
+    font-size: 2vw;
+    font-weight: 400;
+    margin-top: 3vh;
+    max-width: 60ch;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5vw;
+    margin-top: 4vh;
+  }
+  .chip {
+    border: 2px solid currentColor;
+    border-radius: 100px;
+    padding: 1.4vh 2vw;
+    font-size: 1.6vw;
+    white-space: nowrap;
+    transition: background .25s ease, color .25s ease, transform .25s ease;
+  }
+  .chip:hover { transform: translateY(-4px); }
+  .chip.solid {
+    background: currentColor;
+  }
+  .chip.solid span {
+    color: var(--white);
+  }
+  .invert .chip.solid span { color: var(--black); }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 2.2vh;
+    margin-top: 4vh;
+  }
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: 2vw;
+    font-size: 1.9vw;
+  }
+  .row .what {
+    font-weight: 800;
+    min-width: 16vw;
+  }
+  .row .arrow { color: var(--gray); }
+  .row .why { font-weight: 400; }
+
+  .big-text {
+    font-size: 2.2vw;
+    line-height: 1.5;
+    max-width: 55ch;
+    margin-top: 3vh;
+  }
+
+  .accent {
+    font-size: 3.4vw;
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1.2;
+    margin-top: 4vh;
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 4vh;
+    left: 8vw;
+    font-size: 1vw;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  .nav {
+    position: fixed;
+    bottom: 3.5vh;
+    right: 4vw;
+    display: flex;
+    align-items: center;
+    gap: 1.5vw;
+    z-index: 10;
+  }
+  .nav button {
+    background: none;
+    border: 2px solid var(--black);
+    border-radius: 100px;
+    width: 3.2vw;
+    height: 3.2vw;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 1.2vw;
+    cursor: pointer;
+    color: var(--black);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .25s ease, color .25s ease, transform .25s ease;
+  }
+  .nav button:hover { background: var(--black); color: var(--white); transform: scale(1.1); }
+  .nav button:active { transform: scale(0.95); }
+  .counter { font-size: 1.1vw; font-variant-numeric: tabular-nums; }
+
+  /* Плавный прогресс-бар сверху */
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 4px;
+    background: var(--black);
+    width: 0;
+    transition: width .55s cubic-bezier(.22, .61, .36, 1);
+    z-index: 20;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide, .slide.active, .slide.active .anim, .progress { transition: none; animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- 1. Титул -->
+<section class="slide invert active">
+  <h1 class="anim">Лендинг<br>нашего проекта</h1>
+  <div class="subtitle anim">Посадочная страница — от идеи до живого адреса в интернете. Один маршрут, один агент, одно облако</div>
+  <div class="chips anim">
+    <div class="chip">OpenCode</div>
+    <div class="chip">Playwright</div>
+    <div class="chip">Amvera</div>
+  </div>
+  <div class="footer anim">Презентация к инструкции</div>
+</section>
+
+<!-- 2. Маршрут -->
+<section class="slide">
+  <h2 class="anim">Две части — одна история</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Часть 1</span><span class="arrow">→</span><span class="why">строим посадочную страницу целиком в OpenCode: блоки 1–6</span></div>
+    <div class="row"><span class="what">Часть 2</span><span class="arrow">→</span><span class="why">публикуем в Amvera: агент ведёт кабинет через playwright, от нас — аккаунт. Блоки 7–13</span></div>
+    <div class="row"><span class="what">Финал</span><span class="arrow">→</span><span class="why">аудит по живому адресу, обновление, безопасность</span></div>
+  </div>
+  <div class="accent anim">OpenCode строит — Amvera публикует</div>
+  <div class="footer anim">Маршрут</div>
+</section>
+
+<!-- 3. Кто есть кто -->
+<section class="slide invert">
+  <h2 class="anim">Кто есть кто</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">OpenCode</span><span class="arrow">→</span><span class="why">ИИ-агент: читает файлы, создаёт страницы, отчитывается</span></div>
+    <div class="row"><span class="what">Лендинг</span><span class="arrow">→</span><span class="why">одностраничник с одной целью: привести к действию</span></div>
+    <div class="row"><span class="what">Amvera</span><span class="arrow">→</span><span class="why">российская PaaS: сайт в контейнере, код через Git или кабинет</span></div>
+    <div class="row"><span class="what">Playwright</span><span class="arrow">→</span><span class="why">автоматизация браузера: агент сам кликает и заполняет формы</span></div>
+    <div class="row"><span class="what">Навык (skill)</span><span class="arrow">→</span><span class="why">готовая роль агента: playwright, grillme, копирайтер</span></div>
+  </div>
+  <div class="accent anim">Никаких конструкторов</div>
+  <div class="footer anim">Словарь</div>
+</section>
+
+<!-- 4. Часть 1 — старт -->
+<section class="slide">
+  <h2 class="anim">Часть 1: лендинг промптами</h2>
+  <div class="subtitle anim">Шесть блоков — маршрут посадочной страницы нашего проекта целиком в OpenCode</div>
+  <div class="chips anim" style="margin-top:5vh">
+    <div class="chip">1 · Разведка</div>
+    <div class="chip">2 · Описание</div>
+    <div class="chip">3 · Архитектура</div>
+    <div class="chip solid"><span>4 · Сборка</span></div>
+    <div class="chip">5 · Аудит</div>
+    <div class="chip">6 · Рефакторинг</div>
+  </div>
+  <div class="accent anim">Страницу пишет сам агент</div>
+  <div class="footer anim">Часть 1 · блоки 1–6</div>
+</section>
+
+<!-- 5. Блок 1 — разведка -->
+<section class="slide invert">
+  <h2 class="anim">Разведка: скан образца</h2>
+  <div class="big-text anim">
+    Прежде чем строить — смотрим, как сделано у лучших. Подберите сайт-ориентир
+    под наш проект, и OpenCode соберёт по нему отчёт.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Дизайн</span><span class="arrow">→</span><span class="why">цвета, шрифты, стиль оформления</span></div>
+    <div class="row"><span class="what">Структура</span><span class="arrow">→</span><span class="why">шапка, герой, преимущества, кнопка действия, подвал</span></div>
+    <div class="row"><span class="what">Тексты</span><span class="arrow">→</span><span class="why">какие обещания и формулировки использует продукт</span></div>
+    <div class="row"><span class="what">Функционал</span><span class="arrow">→</span><span class="why">как устроена главная кнопка страницы</span></div>
+  </div>
+  <div class="accent anim">Ничего не создаёт — только доклад</div>
+  <div class="footer anim">Блок 1 · разведка</div>
+</section>
+
+<!-- 6. Блок 2 — моё описание -->
+<section class="slide">
+  <h2 class="anim">Моё описание: досье</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Досье</span><span class="arrow">→</span><span class="why">что за продукт, для кого, какие разделы на странице</span></div>
+    <div class="row"><span class="what">Преимущества</span><span class="arrow">→</span><span class="why">минимум три, каждое — конкретная выгода, не «это удобно»</span></div>
+    <div class="row"><span class="what">grillme</span><span class="arrow">→</span><span class="why">жарит досье трудными вопросами, вскрывает слабые места</span></div>
+    <div class="row"><span class="what">Копирайтер</span><span class="arrow">→</span><span class="why">маркетолог переписывает тексты так, чтобы читались</span></div>
+  </div>
+  <div class="accent anim">Готового промпта нет — пишете вы</div>
+  <div class="footer anim">Блок 2 · моё описание</div>
+</section>
+
+<!-- 7. Блок 3 — архитектура -->
+<section class="slide invert">
+  <h2 class="anim">Архитектура: план</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Секции</span><span class="arrow">→</span><span class="why">какие блоки будут на странице и что в каждом</span></div>
+    <div class="row"><span class="what">Тексты</span><span class="arrow">→</span><span class="why">какой текст к какому блоку — уже усиленные</span></div>
+    <div class="row"><span class="what">Стили</span><span class="arrow">→</span><span class="why">цвета, шрифты, оформление: своя система, не копия</span></div>
+    <div class="row"><span class="what">Интерактив</span><span class="arrow">→</span><span class="why">кнопки, ссылки, формы: что нажимается и куда ведёт</span></div>
+  </div>
+  <div class="accent anim">План дёшево — страницу дорого</div>
+  <div class="footer anim">Блок 3 · архитектура</div>
+</section>
+
+<!-- 8. Блок 4 — сборка -->
+<section class="slide">
+  <h2 class="anim">OpenCode собирает</h2>
+  <div class="big-text anim">
+    Страница пишется файлами прямо в рабочую папку проекта:
+    index.html в корне, рядом css/, js/ и картинки. Папка и есть сайт.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Ссылки</span><span class="arrow">→</span><span class="why">только относительные: css/style.css — никаких file://</span></div>
+    <div class="row"><span class="what">Правки</span><span class="arrow">→</span><span class="why">промптами: «сделай заголовок крупнее» — по одной задаче</span></div>
+    <div class="row"><span class="what">Черновик</span><span class="arrow">→</span><span class="why">двойной клик по index.html — страница видна в браузере</span></div>
+  </div>
+  <div class="accent anim">Что открылось локально — откроется в сети</div>
+  <div class="footer anim">Блок 4 · сборка</div>
+</section>
+
+<!-- 9. Блок 5 — аудит -->
+<section class="slide invert">
+  <h2 class="anim">Независимый аудит</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Новая вкладка</span><span class="arrow">→</span><span class="why">аудитор не автор страницы и не жалеет её</span></div>
+    <div class="row"><span class="what">Дизайн</span><span class="arrow">→</span><span class="why">цвета, отступы, шрифты, читаемость</span></div>
+    <div class="row"><span class="what">Тексты</span><span class="arrow">→</span><span class="why">опечатки, скучные и пустые формулировки</span></div>
+    <div class="row"><span class="what">Функционал</span><span class="arrow">→</span><span class="why">кнопки, ссылки, сломанные элементы</span></div>
+    <div class="row"><span class="what">Отчёт</span><span class="arrow">→</span><span class="why">«что не так — почему — как исправить», по серьёзности</span></div>
+  </div>
+  <div class="accent anim">Свежий контекст не жалеет</div>
+  <div class="footer anim">Блок 5 · аудит</div>
+</section>
+
+<!-- 10. Блок 6 — рефакторинг -->
+<section class="slide">
+  <h2 class="anim">Рефакторинг</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">По порядку</span><span class="arrow">→</span><span class="why">от серьёзных ошибок аудита к мелким</span></div>
+    <div class="row"><span class="what">Мусор</span><span class="arrow">→</span><span class="why">лишние стили, дубли, мёртвые кнопки — под нож</span></div>
+    <div class="row"><span class="what">Смысл</span><span class="arrow">→</span><span class="why">не меняется: всё, что работало, продолжает работать</span></div>
+    <div class="row"><span class="what">Отчёт</span><span class="arrow">→</span><span class="why">«что исправлено — что удалено», по пунктам аудита</span></div>
+  </div>
+  <div class="accent anim">Лендинг готов — пока на диске</div>
+  <div class="footer anim">Блок 6 · рефакторинг</div>
+</section>
+
+<!-- 11. Часть 2 — старт, что такое Amvera -->
+<section class="slide invert">
+  <h2 class="anim">Часть 2: деплой на Amvera</h2>
+  <div class="big-text anim">
+    Amvera (amvera.ru) — российская PaaS-платформа: сайт разворачивается
+    в контейнере, а код доставляется push'ем в Git или загрузкой через личный кабинет.
+    Наша часть в этой части — аккаунт. Всё остальное в кабинете сделает агент.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">GitOps</span><span class="arrow">→</span><span class="why">обновление одной командой: git push amvera master</span></div>
+    <div class="row"><span class="what">Домен и SSL</span><span class="arrow">→</span><span class="why">бесплатный адрес *.amvera.tech с HTTPS-сертификатом</span></div>
+    <div class="row"><span class="what">Тариф</span><span class="arrow">→</span><span class="why">«Пробный»: 170 ₽/мес поминутно, 111 ₽ на тест при регистрации</span></div>
+    <div class="row"><span class="what">Регионы</span><span class="arrow">→</span><span class="why">Москва, Варшава, Майами</span></div>
+  </div>
+  <div class="accent anim">Серверы — не ваша забота</div>
+  <div class="footer anim">Блок 7 · знакомство</div>
+</section>
+
+<!-- 12. Блок 8 — что такое playwright -->
+<section class="slide">
+  <h2 class="anim">Playwright — руки агента</h2>
+  <div class="big-text anim">
+    Playwright — фреймворк автоматизации браузера от Microsoft: он управляет
+    настоящим браузером, как человек. Навык playwright делает его ролью агента:
+    OpenCode сам открывает кабинет Amvera и ведёт деплой от начала до конца.
+  </div>
+  <div class="list anim">
+    <div class="row"><span class="what">Playwright</span><span class="arrow">→</span><span class="why">открывает страницы, кликает, заполняет формы, грузит файлы</span></div>
+    <div class="row"><span class="what">Навык playwright</span><span class="arrow">→</span><span class="why">агент ведёт браузер сам — вы только смотрите</span></div>
+    <div class="row"><span class="what">Скриншоты</span><span class="arrow">→</span><span class="why">агент видит страницу и проверяет результат глазами</span></div>
+    <div class="row"><span class="what">Ваша роль</span><span class="arrow">→</span><span class="why">создать аккаунт — дальше руль у агента</span></div>
+  </div>
+  <div class="accent anim">Мышка не нужна</div>
+  <div class="footer anim">Блок 8 · playwright</div>
+</section>
+
+<!-- 13. Блок 9 — регистрация: единственное действие руками -->
+<section class="slide invert">
+  <h2 class="anim">Регистрация: наш ход</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Кабинет</span><span class="arrow">→</span><span class="why">cloud.amvera.ru → кнопка «Зарегистрироваться»</span></div>
+    <div class="row"><span class="what">Вход</span><span class="arrow">→</span><span class="why">через Google или GitHub — быстрее всего</span></div>
+    <div class="row"><span class="what">Баланс</span><span class="arrow">→</span><span class="why">111 ₽ стартовых активируются автоматически</span></div>
+    <div class="row"><span class="what">Сессия</span><span class="arrow">→</span><span class="why">войдите и оставьте кабинет открытым — агент подхватит его через playwright</span></div>
+  </div>
+  <div class="accent anim">Единственное действие руками</div>
+  <div class="footer anim">Блок 9 · регистрация</div>
+</section>
+
+<!-- 14. Блок 10 — проект создаёт агент -->
+<section class="slide">
+  <h2 class="anim">Проект: делает агент</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Создание</span><span class="arrow">→</span><span class="why">агент сам нажимает «Создайте первый проект!»</span></div>
+    <div class="row"><span class="what">Тип и регион</span><span class="arrow">→</span><span class="why">«Приложение», регион — Москва или подходящий</span></div>
+    <div class="row"><span class="what">Имя и тариф</span><span class="arrow">→</span><span class="why">латинское название, тариф «Пробный» для старта</span></div>
+    <div class="row"><span class="what">Дальше</span><span class="arrow">→</span><span class="why">этап «Загрузка данных» — тоже на агенте</span></div>
+  </div>
+  <div class="accent anim">Имя станет частью адреса</div>
+  <div class="footer anim">Блок 10 · проект</div>
+</section>
+
+<!-- 15. Блок 11 — конфигурация -->
+<section class="slide invert">
+  <h2 class="anim">amvera.yaml: один файл</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Генератор</span><span class="arrow">→</span><span class="why">manifest.amvera.ru сгенерирует файл за вас</span></div>
+    <div class="row"><span class="what">Окружение</span><span class="arrow">→</span><span class="why">Node.JS Browser (Static Web) — для статических сайтов</span></div>
+    <div class="row"><span class="what">В корень</span><span class="arrow">→</span><span class="why">рядом с index.html: конфиг хранится вместе с кодом</span></div>
+    <div class="row"><span class="what">Кто кладёт</span><span class="arrow">→</span><span class="why">агент: сгенерирует и положит сам, без вашего участия</span></div>
+  </div>
+  <div class="accent anim">Писать руками не нужно никому</div>
+  <div class="footer anim">Блок 11 · конфигурация</div>
+</section>
+
+<!-- 16. Блок 12 — загрузка кода -->
+<section class="slide">
+  <h2 class="anim">Загрузка кода: сам агент</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Загрузка</span><span class="arrow">→</span><span class="why">агент перетаскивает файлы лендинга в окно кабинета через playwright</span></div>
+    <div class="row"><span class="what">Проверка</span><span class="arrow">→</span><span class="why">дожидается, пока всё появится в списке — ничего не потерялось</span></div>
+    <div class="row"><span class="what">Сборка</span><span class="arrow">→</span><span class="why">Amvera собирает и запускает проект сама, без простоя</span></div>
+    <div class="row"><span class="what">Обновление</span><span class="arrow">→</span><span class="why">правили файлы → агент перезаливает сам; запасной путь — git push amvera master</span></div>
+  </div>
+  <div class="accent anim">Одно сообщение — и сайт новый</div>
+  <div class="footer anim">Блок 12 · загрузка</div>
+</section>
+
+<!-- 17. Блок 13 — домен -->
+<section class="slide invert">
+  <h2 class="anim">Домен и HTTPS</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Добавить</span><span class="arrow">→</span><span class="why">агент открывает вкладку «Домены» и берёт «Бесплатный домен Амвера»</span></div>
+    <div class="row"><span class="what">Адрес</span><span class="arrow">→</span><span class="why">проект.пользователь.регион.amvera.tech — с HTTPS</span></div>
+    <div class="row"><span class="what">Сертификат</span><span class="arrow">→</span><span class="why">выдаётся автоматически, первое открытие — пара минут</span></div>
+    <div class="row"><span class="what">Проверка</span><span class="arrow">→</span><span class="why">откройте адрес с телефона — сайт должен открыться</span></div>
+  </div>
+  <div class="accent anim">Живой сайт — с телефона</div>
+  <div class="footer anim">Блок 13 · домен</div>
+</section>
+
+<!-- 18. Блок 14 — живой сайт -->
+<section class="slide">
+  <h2 class="anim">Аудит, обновление, защита</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Аудит по URL</span><span class="arrow">→</span><span class="why">агент проверяет живой сайт как сторонний эксперт</span></div>
+    <div class="row"><span class="what">Обновление</span><span class="arrow">→</span><span class="why">правки файлов → повторная загрузка агентом, тот же адрес</span></div>
+    <div class="row"><span class="what">Безопасность</span><span class="arrow">→</span><span class="why">цикл «аудит → правки → аудит», максимум 3 цикла</span></div>
+    <div class="row"><span class="what">Смысл</span><span class="arrow">→</span><span class="why">при правках не меняется: работало — работает</span></div>
+  </div>
+  <div class="accent anim">Публикация — не финиш</div>
+  <div class="footer anim">Блок 14 · живой сайт</div>
+</section>
+
+<!-- 19. Итог -->
+<section class="slide invert">
+  <h2 class="anim">Итог</h2>
+  <div class="list anim">
+    <div class="row"><span class="what">Лендинг</span><span class="arrow">→</span><span class="why">собран промптами в OpenCode, проверен, вычищен</span></div>
+    <div class="row"><span class="what">Проект на Amvera</span><span class="arrow">→</span><span class="why">агент создал, загрузил, настроил конфиг и домен</span></div>
+    <div class="row"><span class="what">Ваш вклад</span><span class="arrow">→</span><span class="why">аккаунт и пара подтверждений — остальное агент</span></div>
+    <div class="row"><span class="what">Маршрут</span><span class="arrow">→</span><span class="why">разведка → описание → архитектура → сборка → аудит → деплой</span></div>
+  </div>
+  <div class="accent anim">OpenCode строит — Amvera публикует</div>
+  <div class="footer anim">Финиш</div>
+</section>
+
+<div class="nav">
+  <button id="prev" aria-label="Назад">←</button>
+  <span class="counter"><span id="cur">1</span> / <span id="total">19</span></span>
+  <button id="next" aria-label="Вперёд">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  let i = 0;
+  let animating = false;
+  document.getElementById('total').textContent = slides.length;
+
+  function updateProgress() {
+    progress.style.width = ((i + 1) / slides.length * 100) + '%';
+  }
+
+  function playStagger(slide) {
+    slide.querySelectorAll('.anim').forEach((el, k) => {
+      el.style.animation = 'none';
+      void el.offsetHeight; // перезапуск анимации
+      el.style.animation = '';
+      el.style.animationDelay = (0.12 + k * 0.1) + 's';
+    });
+  }
+
+  function show(n, dir) {
+    if (animating) return;
+    animating = true;
+    setTimeout(() => animating = false, 750);
+
+    const old = slides[i];
+    const next = slides[(n + slides.length) % slides.length];
+    const forward = dir !== undefined ? dir > 0 : n > i;
+
+    // мгновенно ставим входящий слайд на нужную сторону
+    next.classList.add('no-anim');
+    next.classList.toggle('from-left', !forward);
+    void next.offsetHeight; // фиксируем позицию без анимации
+    next.classList.remove('no-anim');
+    next.classList.remove('from-left'); // стартовая точка уже зафиксирована reflow
+
+    // вынос текущего слайда в противоположную сторону
+    old.classList.remove('active');
+    old.classList.toggle('from-left', forward);
+
+    // входящий слайд плавно доезжает до места
+    next.classList.add('active');
+    i = (n + slides.length) % slides.length;
+    document.getElementById('cur').textContent = i + 1;
+
+    playStagger(next);
+    updateProgress();
+    paintChrome(next);
+  }
+
+  // контрастное состояние навигации и счётчика на тёмных слайдах
+  function paintChrome(slide) {
+    const invertNow = slide.classList.contains('invert');
+    document.querySelector('.nav').style.borderColor = invertNow ? 'var(--white)' : 'var(--black)';
+    document.querySelectorAll('.nav button').forEach(b => {
+      b.style.borderColor = invertNow ? 'var(--white)' : 'var(--black)';
+      b.style.color = invertNow ? 'var(--white)' : 'var(--black)';
+    });
+    document.querySelector('.counter').style.color = invertNow ? 'var(--white)' : 'var(--black)';
+  }
+
+  document.getElementById('next').onclick = () => show(i + 1, 1);
+  document.getElementById('prev').onclick = () => show(i - 1, -1);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(i + 1, 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(i - 1, -1);
+    if (e.key === 'Home') show(0, -1);
+    if (e.key === 'End') show(slides.length - 1, 1);
+  });
+
+  // свайпы на тач-экранах
+  let touchX = null;
+  document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+    touchX = null;
+  });
+
+  playStagger(slides[0]);
+  updateProgress();
+  paintChrome(slides[0]);
+</script>
+
+</body>
+</html>
